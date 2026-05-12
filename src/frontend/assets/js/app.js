@@ -639,11 +639,21 @@
     const provinceView = isProvinceView();
     const centralOwnerMode = isCentralOwnerMode();
 
+    // Update sidebar mode indicator
+    const modeEl = document.getElementById('sidebarMode');
+    if (modeEl) {
+      if (centralOwnerMode)               modeEl.textContent = 'Kementerian & Lembaga Nasional';
+      else if (provinceView)              modeEl.textContent = 'Pemerintah Provinsi';
+      else if (state.mapFilter === 'kabkota') modeEl.textContent = 'Pemerintah Kabupaten/Kota';
+      else                                modeEl.textContent = ownerTypeLabel(state.mapFilter);
+    }
+
     dom.tabs.innerHTML = TABS.map((tab) => {
       const active = provinceView || centralOwnerMode ? tab.key === 'all' : tab.key === state.tab;
       const disabled = (provinceView || centralOwnerMode) && tab.key !== 'all';
+      const title = disabled ? 'Filter ini hanya tersedia pada mode Pemkot' : '';
 
-      return `<button class="stb${active ? ' a' : ''}"${disabled ? ' disabled' : ''} onclick="${actionCall(
+      return `<button class="stb${active ? ' a' : ''}"${disabled ? ' disabled' : ''} title="${escapeAttr(title)}" onclick="${actionCall(
         'setTab',
         disabled ? 'all' : tab.key
       )}">${escapeHtml(tab.label)}</button>`;
@@ -696,7 +706,7 @@
         listHtml = `<div class="panel-msg">Tidak ada kementerian/lembaga yang cocok dengan filter saat ini.</div>`;
       } else {
         const maxWaste = Math.max(...owners.map((owner) => owner.totalPotentialWaste), 1);
-        listHtml = owners
+        listHtml = `<div class="list-hint">${owners.length} K/L ditemukan &middot; Klik kartu untuk detail paket</div>` + owners
           .map((owner, index) => {
             const selectedClass =
               state.selectedOwnerKey === getOwnerCardKey(owner.ownerType, owner.ownerName)
@@ -738,6 +748,8 @@
           isProvinceView() ? 'provinsi' : 'region'
         )} yang cocok dengan filter saat ini.</div>`;
       } else {
+        const areaLabel = isProvinceView() ? 'provinsi' : 'wilayah';
+        listHtml = `<div class="list-hint">${areas.length} ${areaLabel} ditemukan &middot; Klik kartu untuk detail paket</div>`;
         const areaEntries = areas.map((area) => ({
           area,
           metrics: getSidebarAreaMetrics(area),
