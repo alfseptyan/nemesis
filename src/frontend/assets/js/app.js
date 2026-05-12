@@ -633,6 +633,7 @@
     });
   }
 
+
   function renderKpis() {
     const summary = dashboardData.summary;
     const mappedPackages = summary.totalPackages - summary.unmappedPackages;
