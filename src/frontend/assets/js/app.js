@@ -44,6 +44,7 @@
     tabs: document.getElementById('tabs'),
     legend: document.getElementById('legend'),
     sidebarContent: document.getElementById('sbc'),
+    sidebarAccessHint: document.getElementById('sidebarAccessHint'),
     modal: document.getElementById('rupModal'),
     modalTop: document.getElementById('modalTop'),
     modalBody: document.getElementById('modalBody'),
@@ -178,6 +179,10 @@
 
   function isCentralOwnerMode() {
     return state.mapFilter === 'central';
+  }
+
+  function isSidebarActiveMode() {
+    return state.mapFilter === 'kabkota';
   }
 
   function currentAreaType() {
@@ -398,6 +403,60 @@
     dom.sidebarContent.innerHTML = `<div class="panel-msg${isError ? ' error' : ''}">${escapeHtml(message)}</div>`;
   }
 
+  function renderSidebarLoadingScene() {
+    dom.sidebarContent.innerHTML =
+      '<div class="sidebar-loading-scene">' +
+      '<div class="sidebar-loading-head">' +
+      '<div class="sidebar-loading-badge">Loading</div>' +
+      '<div class="sidebar-loading-title">Menyiapkan sidebar kanan</div>' +
+      '<div class="sidebar-loading-sub">Memuat data wilayah, filter, dan daftar kartu.</div>' +
+      '</div>' +
+      '<div class="sidebar-loading-list">' +
+      '<div class="sidebar-loading-card"></div>' +
+      '<div class="sidebar-loading-card"></div>' +
+      '<div class="sidebar-loading-card"></div>' +
+      '</div>' +
+      '<div class="sidebar-loading-note">Jika tombol terasa belum bisa dipencet, tunggu loading selesai dan cek alasan akses di atas.</div>' +
+      '</div>';
+  }
+
+  function getSidebarAccessHint() {
+    if (!dashboardData) {
+      return {
+        state: 'loading',
+        label: 'Memuat',
+        message: 'Sidebar kanan masih menunggu data selesai dimuat.',
+      };
+    }
+
+    if (isSidebarActiveMode()) {
+      return {
+        state: 'ready',
+        label: 'Aktif',
+        message: 'Sidebar kanan aktif untuk mode Pemkot.',
+      };
+    }
+
+    return {
+      state: 'locked',
+      label: 'Terkunci',
+      message: 'Sidebar kanan hanya aktif saat mode Pemkot dipilih.',
+    };
+  }
+
+  function renderSidebarAccessHint() {
+    if (!dom.sidebarAccessHint) {
+      return;
+    }
+
+    const hint = getSidebarAccessHint();
+    dom.sidebarAccessHint.innerHTML =
+      `<div class="sidebar-access ${escapeAttr(hint.state)}">` +
+      `<span class="sidebar-access-chip">${escapeHtml(hint.label)}</span>` +
+      `<span class="sidebar-access-text">${escapeHtml(hint.message)}</span>` +
+      `</div>`;
+  }
+
   function renderModalState(title, message, isError) {
     dom.modalTop.innerHTML =
       `<div class="modal-top-row"><div><h2>${escapeHtml(title)}</h2><div class="msub">Audit paket pengadaan &middot; TA 2026</div></div>` +
@@ -432,7 +491,8 @@
         helpKey: 'mappedPackages',
       },
     ]);
-    renderSidebarMessage('Memuat audit pengadaan per area...', false);
+    renderSidebarLoadingScene();
+    renderSidebarAccessHint();
     setMapStatus('Memuat peta audit...', false);
   }
 
@@ -463,7 +523,16 @@
         helpKey: 'mappedPackages',
       },
     ]);
-    renderSidebarMessage(`Gagal memuat dashboard audit: ${error}`, true);
+    dom.sidebarContent.innerHTML =
+      '<div class="sidebar-loading-scene error">' +
+      '<div class="sidebar-loading-head">' +
+      '<div class="sidebar-loading-badge error">Error</div>' +
+      '<div class="sidebar-loading-title">Dashboard gagal dimuat</div>' +
+      '<div class="sidebar-loading-sub">Ada masalah saat mengambil bootstrap data.</div>' +
+      '</div>' +
+      `<div class="sidebar-loading-note">${escapeHtml(error)}</div>` +
+      '</div>';
+    renderSidebarAccessHint();
     setMapStatus(`Gagal memuat dashboard audit: ${error}`, true);
   }
 
@@ -718,6 +787,7 @@
   function renderTabs() {
     const provinceView = isProvinceView();
     const centralOwnerMode = isCentralOwnerMode();
+    const sidebarActive = isSidebarActiveMode();
 
     // Update sidebar mode indicator
     const modeEl = document.getElementById('sidebarMode');
@@ -728,24 +798,25 @@
       else                                modeEl.textContent = ownerTypeLabel(state.mapFilter);
     }
 
-    dom.tabs.innerHTML = TABS.map((tab) => {
-      const active = provinceView || centralOwnerMode ? tab.key === 'all' : tab.key === state.tab;
-      const disabled = (provinceView || centralOwnerMode) && tab.key !== 'all';
-      const title = disabled ? 'Filter ini hanya tersedia pada mode Pemkot' : '';
+    renderSidebarAccessHint();
 
-      return `<button class="stb${active ? ' a' : ''}"${disabled ? ' disabled' : ''} title="${escapeAttr(title)}" onclick="${actionCall(
+    if (!sidebarActive) {
+      dom.tabs.innerHTML = '';
+      return;
+    }
+
+    dom.tabs.innerHTML = TABS.map((tab) => {
+      const active = tab.key === state.tab;
+
+      return `<button class="stb${active ? ' a' : ''}" type="button" onclick="${actionCall(
         'setTab',
-        disabled ? 'all' : tab.key
+        tab.key
       )}">${escapeHtml(tab.label)}</button>`;
     }).join('');
   }
 
   function sortControl() {
-    const placeholder = isCentralOwnerMode()
-      ? 'Cari kementerian/lembaga...'
-      : isProvinceView()
-        ? 'Cari provinsi...'
-        : 'Cari kabupaten/kota...';
+    const placeholder = 'Cari kabupaten/kota...';
 
     return (
       `<div class="sw"><span class="si">&#128269;</span><input id="sidebarSearch" type="text" placeholder="${escapeAttr(
@@ -766,6 +837,115 @@
       return;
     }
 
+    const sidebarActive = isSidebarActiveMode();
+
+    if (!sidebarActive) {
+      const isProvince = isProvinceView();
+      const label = isCentralOwnerMode() ? 'kementerian/lembaga' : isProvince ? 'provinsi' : 'wilayah';
+      const entries = isCentralOwnerMode()
+        ? getFilteredOwnersForSidebar()
+        : getFilteredAreasForSidebar();
+
+      if (updateControls || !dom.sidebarContent.querySelector('.sw')) {
+        dom.sidebarContent.innerHTML = sortControl();
+      } else {
+        const children = Array.from(dom.sidebarContent.children);
+        for (const child of children) {
+          if (!child.classList.contains('sw') && !child.classList.contains('sort-bar')) {
+            dom.sidebarContent.removeChild(child);
+          }
+        }
+      }
+
+      if (!entries.length) {
+        dom.sidebarContent.insertAdjacentHTML(
+          'beforeend',
+          `<div class="panel-msg">Tidak ada ${escapeHtml(label)} yang cocok dengan filter saat ini.</div>`
+        );
+        return;
+      }
+
+      const title = isCentralOwnerMode()
+        ? `${entries.length} K/L ditemukan`
+        : `${entries.length} ${label} ditemukan`;
+      dom.sidebarContent.insertAdjacentHTML('beforeend', `<div class="list-hint">${escapeHtml(title)}</div>`);
+
+      const maxWaste = Math.max(
+        ...entries.map((entry) => (isCentralOwnerMode() ? entry.totalPotentialWaste : getSidebarAreaMetrics(entry).totalPotentialWaste)),
+        1
+      );
+
+      const listHtml = entries
+        .map((entry, index) => {
+          if (isCentralOwnerMode()) {
+            const selectedClass =
+              state.selectedOwnerKey === getOwnerCardKey(entry.ownerType, entry.ownerName) ? ' a' : '';
+
+            return (
+              `<div class="pi${selectedClass}" role="button" tabindex="0" onclick="${actionCall('openOwnerModal', entry.ownerName, entry.ownerType)}" onkeydown="${actionExpr(
+                `dashboardActions.handleSidebarCardKeydown(event, 'openOwnerModal', ${jsArg(entry.ownerName)}, ${jsArg(
+                  entry.ownerType
+                )})`
+              )}">` +
+              `<div class="pit"><div class="pn"><span style="color:var(--t3);font-size:9px;margin-right:5px">#${index + 1}</span>${escapeHtml(
+                entry.ownerName
+              )}</div><div class="tbd bc">K/L</div></div>` +
+              `<div style="font-size:9.5px;color:var(--t3);margin-bottom:4px">Kementerian/Lembaga</div>` +
+              `<div><span class="ppv">Rp ${escapeHtml(formatCompactCurrency(entry.totalPotentialWaste))}</span><span class="ppl"> &middot; ${escapeHtml(
+                formatNumber(entry.totalPriorityPackages)
+              )} prioritas</span></div>` +
+              `<div class="bw"><div class="bf" style="width:${Math.max(
+                4,
+                Math.round((entry.totalPotentialWaste / maxWaste) * 100)
+              )}%;background:${escapeAttr(getLegendColor(entry.totalPotentialWaste))}"></div></div>` +
+              `<div class="ps"><div class="pst">Total Paket: <strong>${escapeHtml(
+                formatNumber(entry.totalPackages)
+              )}</strong></div><div class="pst">Severity High: <strong>${escapeHtml(
+                formatNumber(entry.severityCounts.high)
+              )}</strong></div></div>` +
+              `<div class="owner-mix">Severity Absurd ${escapeHtml(formatNumber(entry.severityCounts.absurd))}</div>` +
+              `<div class="waste-row"><span class="waste-label">Pagu Teraudit</span><span class="waste-val">${escapeHtml(
+                `Rp ${formatCompactCurrency(entry.totalBudget)}`
+              )}</span></div>` +
+              `</div>`
+            );
+          }
+
+          const metrics = getSidebarAreaMetrics(entry);
+          const areaKey = getAreaKey(entry);
+          const selectedClass = state.selectedAreaKey === areaKey ? ' a' : '';
+
+          return (
+            `<div class="pi${selectedClass}" role="button" tabindex="0" onclick="${actionCall('openAreaModal', areaKey)}" onkeydown="${actionExpr(
+              `dashboardActions.handleSidebarCardKeydown(event, 'openAreaModal', ${jsArg(areaKey)})`
+            )}">` +
+            `<div class="pit"><div class="pn"><span style="color:var(--t3);font-size:9px;margin-right:5px">#${index + 1}</span>${escapeHtml(
+              entry.displayName
+            )}</div><div class="tbd ${areaBadgeClass(entry)}">${escapeHtml(areaBadgeLabel(entry))}</div></div>` +
+            `<div style="font-size:9.5px;color:var(--t3);margin-bottom:4px">${escapeHtml(areaSecondaryLine(entry))}</div>` +
+            `<div><span class="ppv">Rp ${escapeHtml(formatCompactCurrency(metrics.totalPotentialWaste))}</span><span class="ppl"> &middot; ${escapeHtml(
+              formatNumber(metrics.totalPriorityPackages)
+            )} prioritas</span></div>` +
+            `<div class="bw"><div class="bf" style="width:${Math.max(
+              4,
+              Math.round((metrics.totalPotentialWaste / maxWaste) * 100)
+            )}%;background:${escapeAttr(getLegendColor(metrics.totalPotentialWaste))}"></div></div>` +
+            `<div class="ps"><div class="pst">Total Paket: <strong>${escapeHtml(
+              formatNumber(metrics.totalPackages)
+            )}</strong></div><div class="pst">Pemilik: <strong>${escapeHtml(activeSidebarOwnerLabel())}</strong></div></div>` +
+            `<div class="owner-mix">${escapeHtml(areaOwnerSummary())}</div>` +
+            `<div class="waste-row"><span class="waste-label">Pagu Teraudit</span><span class="waste-val">${escapeHtml(
+              `Rp ${formatCompactCurrency(metrics.totalBudget)}`
+            )}</span></div>` +
+            `</div>`
+          );
+        })
+        .join('');
+
+      dom.sidebarContent.insertAdjacentHTML('beforeend', listHtml);
+      return;
+    }
+
     if (updateControls || !dom.sidebarContent.querySelector('.sw')) {
       dom.sidebarContent.innerHTML = sortControl();
     } else {
@@ -779,94 +959,51 @@
 
     let listHtml = '';
 
-    if (isCentralOwnerMode()) {
-      const owners = getFilteredOwnersForSidebar();
+    const areas = getFilteredAreasForSidebar();
 
-      if (!owners.length) {
-        listHtml = `<div class="panel-msg">Tidak ada kementerian/lembaga yang cocok dengan filter saat ini.</div>`;
-      } else {
-        const maxWaste = Math.max(...owners.map((owner) => owner.totalPotentialWaste), 1);
-        listHtml = `<div class="list-hint">${owners.length} K/L ditemukan &middot; Klik kartu untuk detail paket</div>` + owners
-          .map((owner, index) => {
-            const selectedClass =
-              state.selectedOwnerKey === getOwnerCardKey(owner.ownerType, owner.ownerName)
-                ? ' a'
-                : '';
-
-            return (
-              `<div class="pi${selectedClass}" onclick="${actionCall('openOwnerModal', owner.ownerName, owner.ownerType)}">` +
-              `<div class="pit"><div class="pn"><span style="color:var(--t3);font-size:9px;margin-right:5px">#${index + 1}</span>${escapeHtml(
-                owner.ownerName
-              )}</div><div class="tbd bc">K/L</div></div>` +
-              `<div style="font-size:9.5px;color:var(--t3);margin-bottom:4px">Kementerian/Lembaga</div>` +
-              `<div><span class="ppv">Rp ${escapeHtml(formatCompactCurrency(owner.totalPotentialWaste))}</span><span class="ppl"> &middot; ${escapeHtml(
-                formatNumber(owner.totalPriorityPackages)
-              )} prioritas</span></div>` +
-              `<div class="bw"><div class="bf" style="width:${Math.max(
-                4,
-                Math.round((owner.totalPotentialWaste / maxWaste) * 100)
-              )}%;background:${escapeAttr(getLegendColor(owner.totalPotentialWaste))}"></div></div>` +
-              `<div class="ps"><div class="pst">Total Paket: <strong>${escapeHtml(
-                formatNumber(owner.totalPackages)
-              )}</strong></div><div class="pst">Severity High: <strong>${escapeHtml(
-                formatNumber(owner.severityCounts.high)
-              )}</strong></div></div>` +
-              `<div class="owner-mix">Severity Absurd ${escapeHtml(formatNumber(owner.severityCounts.absurd))}</div>` +
-              `<div class="waste-row"><span class="waste-label">Pagu Teraudit</span><span class="waste-val">${escapeHtml(
-                `Rp ${formatCompactCurrency(owner.totalBudget)}`
-              )}</span></div>` +
-              `</div>`
-            );
-          })
-          .join('');
-      }
+    if (!areas.length) {
+      listHtml = `<div class="panel-msg">Tidak ada kabupaten/kota yang cocok dengan filter saat ini.</div>`;
     } else {
-      const areas = getFilteredAreasForSidebar();
+      const areaLabel = 'kabupaten/kota';
+      listHtml = `<div class="list-hint">${areas.length} ${areaLabel} ditemukan &middot; Klik kartu untuk detail paket</div>`;
+      const areaEntries = areas.map((area) => ({
+        area,
+        metrics: getSidebarAreaMetrics(area),
+      }));
+      const maxWaste = Math.max(...areaEntries.map(({ metrics }) => metrics.totalPotentialWaste), 1);
+      const ownerLabel = activeSidebarOwnerLabel();
 
-      if (!areas.length) {
-        listHtml = `<div class="panel-msg">Tidak ada ${escapeHtml(
-          isProvinceView() ? 'provinsi' : 'region'
-        )} yang cocok dengan filter saat ini.</div>`;
-      } else {
-        const areaLabel = isProvinceView() ? 'provinsi' : 'wilayah';
-        listHtml = `<div class="list-hint">${areas.length} ${areaLabel} ditemukan &middot; Klik kartu untuk detail paket</div>`;
-        const areaEntries = areas.map((area) => ({
-          area,
-          metrics: getSidebarAreaMetrics(area),
-        }));
-        const maxWaste = Math.max(...areaEntries.map(({ metrics }) => metrics.totalPotentialWaste), 1);
-        const ownerLabel = activeSidebarOwnerLabel();
+      listHtml = areaEntries
+        .map(({ area, metrics }, index) => {
+          const areaKey = getAreaKey(area);
+          const selectedClass = state.selectedAreaKey === areaKey ? ' a' : '';
 
-        listHtml = areaEntries
-          .map(({ area, metrics }, index) => {
-            const areaKey = getAreaKey(area);
-            const selectedClass = state.selectedAreaKey === areaKey ? ' a' : '';
-
-            return (
-              `<div class="pi${selectedClass}" onclick="${actionCall('openAreaModal', areaKey)}">` +
-              `<div class="pit"><div class="pn"><span style="color:var(--t3);font-size:9px;margin-right:5px">#${index + 1}</span>${escapeHtml(
-                area.displayName
-              )}</div><div class="tbd ${areaBadgeClass(area)}">${escapeHtml(areaBadgeLabel(area))}</div></div>` +
-              `<div style="font-size:9.5px;color:var(--t3);margin-bottom:4px">${escapeHtml(areaSecondaryLine(area))}</div>` +
-              `<div><span class="ppv">Rp ${escapeHtml(formatCompactCurrency(metrics.totalPotentialWaste))}</span><span class="ppl"> &middot; ${escapeHtml(
-                formatNumber(metrics.totalPriorityPackages)
-              )} prioritas</span></div>` +
-              `<div class="bw"><div class="bf" style="width:${Math.max(
-                4,
-                Math.round((metrics.totalPotentialWaste / maxWaste) * 100)
-              )}%;background:${escapeAttr(getLegendColor(metrics.totalPotentialWaste))}"></div></div>` +
-              `<div class="ps"><div class="pst">Total Paket: <strong>${escapeHtml(
-                formatNumber(metrics.totalPackages)
-              )}</strong></div><div class="pst">Pemilik: <strong>${escapeHtml(ownerLabel)}</strong></div></div>` +
-              `<div class="owner-mix">${escapeHtml(areaOwnerSummary())}</div>` +
-              `<div class="waste-row"><span class="waste-label">Pagu Teraudit</span><span class="waste-val">${escapeHtml(
-                `Rp ${formatCompactCurrency(metrics.totalBudget)}`
-              )}</span></div>` +
-              `</div>`
-            );
-          })
-          .join('');
-      }
+          return (
+            `<div class="pi${selectedClass}" role="button" tabindex="0" onclick="${actionCall('openAreaModal', areaKey)}" onkeydown="${actionExpr(
+              `dashboardActions.handleSidebarCardKeydown(event, 'openAreaModal', ${jsArg(areaKey)})`
+            )}">` +
+            `<div class="pit"><div class="pn"><span style="color:var(--t3);font-size:9px;margin-right:5px">#${index + 1}</span>${escapeHtml(
+              area.displayName
+            )}</div><div class="tbd ${areaBadgeClass(area)}">${escapeHtml(areaBadgeLabel(area))}</div></div>` +
+            `<div style="font-size:9.5px;color:var(--t3);margin-bottom:4px">${escapeHtml(areaSecondaryLine(area))}</div>` +
+            `<div><span class="ppv">Rp ${escapeHtml(formatCompactCurrency(metrics.totalPotentialWaste))}</span><span class="ppl"> &middot; ${escapeHtml(
+              formatNumber(metrics.totalPriorityPackages)
+            )} prioritas</span></div>` +
+            `<div class="bw"><div class="bf" style="width:${Math.max(
+              4,
+              Math.round((metrics.totalPotentialWaste / maxWaste) * 100)
+            )}%;background:${escapeAttr(getLegendColor(metrics.totalPotentialWaste))}"></div></div>` +
+            `<div class="ps"><div class="pst">Total Paket: <strong>${escapeHtml(
+              formatNumber(metrics.totalPackages)
+            )}</strong></div><div class="pst">Pemilik: <strong>${escapeHtml(ownerLabel)}</strong></div></div>` +
+            `<div class="owner-mix">${escapeHtml(areaOwnerSummary())}</div>` +
+            `<div class="waste-row"><span class="waste-label">Pagu Teraudit</span><span class="waste-val">${escapeHtml(
+              `Rp ${formatCompactCurrency(metrics.totalBudget)}`
+            )}</span></div>` +
+            `</div>`
+          );
+        })
+        .join('');
     }
 
     dom.sidebarContent.insertAdjacentHTML('beforeend', listHtml);
@@ -1529,6 +1666,22 @@
     openPackageDetail(sourceId);
   }
 
+  function handleSidebarCardKeydown(event, actionName, ...args) {
+    if (!event) {
+      return;
+    }
+
+    if (event.key !== 'Enter' && event.key !== ' ' && event.key !== 'Spacebar') {
+      return;
+    }
+
+    event.preventDefault();
+    const action = window['dashboardActions'] && window['dashboardActions'][actionName];
+    if (typeof action === 'function') {
+      action(...args);
+    }
+  }
+
   function bindEvents() {
     document.addEventListener('keydown', (event) => {
       if (event.key === 'Escape') {
@@ -1561,6 +1714,7 @@
 
   async function bootstrap() {
     renderBootstrapLoading();
+    renderSidebarAccessHint();
 
     try {
       dashboardData = normalizeDashboardData(await fetchJson('/bootstrap'));
@@ -1622,6 +1776,7 @@
     setSearch,
     setSort,
     setTab,
+    handleSidebarCardKeydown,
     toggleLegend,
     toggleMap,
   };

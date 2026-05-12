@@ -107,7 +107,13 @@ function RankingPage({ active, data, loading, error, mode, onModeChange, onBack,
     }
 
     if (loading) {
-      return <div class="ranking-state">Memuat data ranking...</div>;
+      return (
+        <LoadingScene
+          title="Menyiapkan halaman ranking"
+          subtitle="Agregasi persentase pemborosan sedang diproses."
+          note="Daftar ranking baru bisa dipilih setelah data selesai dimuat."
+        />
+      );
     }
 
     if (!ranking.entries.length) {
@@ -270,6 +276,25 @@ function ThemeToggle({ theme, onToggle }) {
   );
 }
 
+function LoadingScene({ title, subtitle, note }) {
+  return (
+    <div class="loading-scene" role="status" aria-live="polite">
+      <div class="loading-scene-card">
+        <div class="loading-scene-spinner" aria-hidden="true"></div>
+        <div class="loading-scene-kicker">Memuat data</div>
+        <div class="loading-scene-title">{title}</div>
+        <div class="loading-scene-sub">{subtitle}</div>
+        {note ? <div class="loading-scene-note">{note}</div> : null}
+        <div class="loading-scene-bars" aria-hidden="true">
+          <span></span>
+          <span></span>
+          <span></span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function App() {
   const [view, setView] = useState(() => (window.location.hash === '#ranking' ? 'ranking' : 'dashboard'));
   const [theme, setTheme] = useState(getInitialTheme);
@@ -367,9 +392,18 @@ export function App() {
     setTheme((current) => (current === 'dark' ? 'light' : 'dark'));
   };
 
+  const isBootstrapLoading = !bootstrapData && !bootstrapError;
+
   return (
     <div id="preact-wrapper" class={view === 'ranking' ? 'view-ranking' : 'view-dashboard'}>
       <div class={`dashboard-shell${view === 'ranking' ? ' is-hidden' : ''}`}>
+        {isBootstrapLoading ? (
+          <LoadingScene
+            title="Menyiapkan dashboard audit"
+            subtitle="Data KPI, peta, dan sidebar kanan sedang dimuat."
+            note="Jika tombol sidebar belum bisa dipencet, tunggu sampai scene loading ini hilang dan lihat alasan akses di bawah."
+          />
+        ) : null}
         <div class="hdr">
           <div class="hdr-l">
             <div class="logo">AUD</div>
@@ -427,12 +461,13 @@ export function App() {
 
           <div class="sb">
             <div class="sbh">
-              <div class="sbh-top">
-                <div class="sbh-mode" id="sidebarMode">Memuat data...</div>
-                <div class="sbh-hint">Klik wilayah di peta atau kartu di bawah untuk detail</div>
-              </div>
-              <div class="sbt" id="tabs"></div>
+            <div class="sbh-top">
+              <div class="sbh-mode" id="sidebarMode">Memuat data...</div>
+              <div class="sbh-hint">Klik wilayah di peta atau kartu di bawah untuk detail</div>
+              <div class="sbh-note" id="sidebarAccessHint"></div>
             </div>
+            <div class="sbt" id="tabs"></div>
+          </div>
             <div class="sbc" id="sbc"></div>
           </div>
         </div>
