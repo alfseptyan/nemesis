@@ -22,6 +22,23 @@ function formatPercentage(value) {
   return amount.toFixed(1).replace('.', ',');
 }
 
+function getInitialTheme() {
+  if (typeof window === 'undefined') {
+    return 'light';
+  }
+
+  try {
+    const saved = window.localStorage.getItem('nemesis-theme');
+    if (saved === 'dark' || saved === 'light') {
+      return saved;
+    }
+  } catch (error) {
+    // Ignore storage access issues and fall back to default theme.
+  }
+
+  return 'light';
+}
+
 function buildWasteRankingEntries(data, mode) {
   if (!data) {
     return {
@@ -77,7 +94,7 @@ function buildWasteRankingEntries(data, mode) {
   };
 }
 
-function RankingPage({ active, data, loading, error, mode, onModeChange, onBack }) {
+function RankingPage({ active, data, loading, error, mode, onModeChange, onBack, theme, onToggleTheme }) {
   const ranking = useMemo(() => buildWasteRankingEntries(data, mode), [data, mode]);
   const isProvinceMode = mode === 'province';
   const maxPercentage = ranking.entries.length
@@ -141,6 +158,7 @@ function RankingPage({ active, data, loading, error, mode, onModeChange, onBack 
           <div class="hdr-r">
             <div class="yr">Ranking</div>
             <PageNav activeView="ranking" onOpenDashboard={onBack} onOpenRanking={onBack} />
+            <ThemeToggle theme={theme} onToggle={onToggleTheme} />
           </div>
         </div>
 
@@ -225,11 +243,50 @@ function PageNav({ activeView, onOpenDashboard, onOpenRanking }) {
   );
 }
 
+function ThemeToggle({ theme, onToggle }) {
+  const isDark = theme === 'dark';
+  const nextLabel = isDark ? 'Beralih ke mode terang' : 'Beralih ke mode gelap';
+
+  return (
+    <button
+      class={`theme-toggle-btn${isDark ? ' a' : ''}`}
+      type="button"
+      onClick={onToggle}
+      aria-label={nextLabel}
+      title={nextLabel}
+    >
+      <span class="theme-toggle-icon" aria-hidden="true">
+        {isDark ? (
+          <svg viewBox="0 0 24 24" role="presentation" aria-hidden="true">
+            <path d="M12 3a1 1 0 0 1 1 1v1.2a1 1 0 1 1-2 0V4a1 1 0 0 1 1-1Zm0 15.8a1 1 0 0 1 1 1V21a1 1 0 1 1-2 0v-1.2a1 1 0 0 1 1-1ZM4.2 11a1 1 0 0 1 0 2H3a1 1 0 1 1 0-2h1.2Zm17 0a1 1 0 0 1 0 2H20a1 1 0 1 1 0-2h1.2ZM6.05 6.05a1 1 0 0 1 1.41 0l.85.85A1 1 0 1 1 6.9 8.31l-.85-.85a1 1 0 0 1 0-1.41Zm9.64 9.64a1 1 0 0 1 1.41 0l.85.85a1 1 0 0 1-1.41 1.41l-.85-.85a1 1 0 0 1 0-1.41Zm0-9.64a1 1 0 0 1 0 1.41l-.85.85a1 1 0 1 1-1.41-1.41l.85-.85a1 1 0 0 1 1.41 0ZM7.31 15.09a1 1 0 0 1 0 1.41l-.85.85a1 1 0 0 1-1.41-1.41l.85-.85a1 1 0 0 1 1.41 0ZM12 7.25A4.75 4.75 0 1 1 7.25 12 4.76 4.76 0 0 1 12 7.25Z" />
+          </svg>
+        ) : (
+          <svg viewBox="0 0 24 24" role="presentation" aria-hidden="true">
+            <path d="M20.2 14.4A8.7 8.7 0 0 1 9.6 3.8a1 1 0 0 0-1.2-1.22A10.8 10.8 0 1 0 21.42 15.6a1 1 0 0 0-1.22-1.2ZM12 21a9 9 0 0 1-6.64-15.06A10.7 10.7 0 0 0 15.1 18.78 8.98 8.98 0 0 1 12 21Z" />
+          </svg>
+        )}
+      </span>
+    </button>
+  );
+}
+
 export function App() {
   const [view, setView] = useState(() => (window.location.hash === '#ranking' ? 'ranking' : 'dashboard'));
+  const [theme, setTheme] = useState(getInitialTheme);
   const [rankingMode, setRankingMode] = useState('kabkota');
   const [bootstrapData, setBootstrapData] = useState(null);
   const [bootstrapError, setBootstrapError] = useState('');
+
+  useEffect(() => {
+    document.body.classList.toggle('theme-dark', theme === 'dark');
+    document.documentElement.style.colorScheme = theme;
+
+    try {
+      window.localStorage.setItem('nemesis-theme', theme);
+    } catch (error) {
+      // Ignore storage issues.
+    }
+  }, [theme]);
 
   useEffect(() => {
     let cancelled = false;
@@ -306,6 +363,10 @@ export function App() {
     setView('dashboard');
   };
 
+  const toggleTheme = () => {
+    setTheme((current) => (current === 'dark' ? 'light' : 'dark'));
+  };
+
   return (
     <div id="preact-wrapper" class={view === 'ranking' ? 'view-ranking' : 'view-dashboard'}>
       <div class={`dashboard-shell${view === 'ranking' ? ' is-hidden' : ''}`}>
@@ -321,6 +382,7 @@ export function App() {
             <div class="ll"><span class="ldot"></span>LIVE</div>
             <div class="yr">TA 2026</div>
             <PageNav activeView={view} onOpenDashboard={openDashboard} onOpenRanking={openRanking} />
+            <ThemeToggle theme={theme} onToggle={toggleTheme} />
           </div>
         </div>
 
@@ -394,6 +456,8 @@ export function App() {
         mode={rankingMode}
         onModeChange={setRankingMode}
         onBack={openDashboard}
+        theme={theme}
+        onToggleTheme={toggleTheme}
       />
     </div>
   );
