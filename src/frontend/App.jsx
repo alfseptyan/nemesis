@@ -45,14 +45,17 @@ function buildWasteRankingEntries(data, mode) {
       entries: [],
       excludedCount: 0,
       sourceCount: 0,
-      modeLabel: mode === 'province' ? 'Provinsi' : 'Kab/Kota',
+      modeLabel:
+        mode === 'province' ? 'Provinsi' : mode === 'central' ? 'Kementerian/Lembaga' : 'Kab/Kota',
     };
   }
 
   const source =
     mode === 'province'
       ? (data.provinceView && data.provinceView.provinces) || []
-      : (data.regions || []).filter((area) => area.regionType === 'Kabupaten' || area.regionType === 'Kota');
+      : mode === 'central'
+        ? (data.ownerLists && data.ownerLists.central) || []
+        : (data.regions || []).filter((area) => area.regionType === 'Kabupaten' || area.regionType === 'Kota');
 
   const entries = [];
   let excludedCount = 0;
@@ -67,7 +70,7 @@ function buildWasteRankingEntries(data, mode) {
     }
 
     entries.push({
-      displayName: area.displayName,
+      displayName: area.displayName || area.ownerName || 'Tidak diketahui',
       totalBudget,
       totalPotentialWaste,
       percentage: (totalPotentialWaste / totalBudget) * 100,
@@ -90,13 +93,62 @@ function buildWasteRankingEntries(data, mode) {
     entries: entries.slice(0, 10),
     excludedCount,
     sourceCount: source.length,
-    modeLabel: mode === 'province' ? 'Provinsi' : 'Kab/Kota',
+    modeLabel:
+      mode === 'province' ? 'Provinsi' : mode === 'central' ? 'Kementerian/Lembaga' : 'Kab/Kota',
+  };
+}
+
+function getRankingProfile(mode) {
+  if (mode === 'central') {
+    return {
+      eyebrow: 'Profil pimpinan',
+      title: 'Penanggung jawab instansi',
+      subtitle: 'Kartu ini disiapkan untuk menampilkan profil pimpinan K/L saat data tersedia.',
+      avatar: 'K/L',
+      meta: [
+        { label: 'Nama', value: 'Belum tersedia' },
+        { label: 'Jabatan', value: 'Pimpinan instansi' },
+        { label: 'Status', value: 'Siap dihubungkan ke data' },
+      ],
+      note: 'Saat backend menambahkan profil pejabat, kartu ini bisa langsung terisi tanpa mengubah struktur halaman.',
+    };
+  }
+
+  if (mode === 'province') {
+    return {
+      eyebrow: 'Profil kepala daerah',
+      title: 'Gubernur provinsi',
+      subtitle: 'Kartu ini disiapkan untuk menampilkan nama gubernur, foto, dan periode jabatan.',
+      avatar: 'G',
+      meta: [
+        { label: 'Nama', value: 'Belum tersedia' },
+        { label: 'Jabatan', value: 'Gubernur' },
+        { label: 'Status', value: 'Siap dihubungkan ke data' },
+      ],
+      note: 'Begitu data profil masuk ke backend, visual ini tinggal menerima foto dan nama tanpa redesign.',
+    };
+  }
+
+  return {
+    eyebrow: 'Profil kepala daerah',
+    title: 'Bupati / Wali Kota',
+    subtitle: 'Kartu ini disiapkan untuk menampilkan profil pimpinan daerah kabupaten/kota.',
+    avatar: 'B/W',
+    meta: [
+      { label: 'Nama', value: 'Belum tersedia' },
+      { label: 'Jabatan', value: 'Bupati / Wali Kota' },
+      { label: 'Status', value: 'Siap dihubungkan ke data' },
+    ],
+    note: 'Struktur ini sengaja dibuat fleksibel agar bisa menerima foto dan identitas kepala daerah di kemudian hari.',
   };
 }
 
 function RankingPage({ active, data, loading, error, mode, onModeChange, onBack, theme, onToggleTheme }) {
   const ranking = useMemo(() => buildWasteRankingEntries(data, mode), [data, mode]);
   const isProvinceMode = mode === 'province';
+  const isCentralMode = mode === 'central';
+  const rankLabel = isCentralMode ? 'Kementerian/Lembaga' : isProvinceMode ? 'Provinsi' : 'Kab/Kota';
+  const profile = useMemo(() => getRankingProfile(mode), [mode]);
   const maxPercentage = ranking.entries.length
     ? Math.max(...ranking.entries.map((entry) => entry.percentage))
     : 0;
@@ -119,7 +171,7 @@ function RankingPage({ active, data, loading, error, mode, onModeChange, onBack,
     if (!ranking.entries.length) {
       return (
         <div class="ranking-state">
-          Tidak ada daerah dengan pagu positif untuk mode {ranking.modeLabel} saat ini.
+          Tidak ada data dengan pagu positif untuk mode {ranking.modeLabel} saat ini.
         </div>
       );
     }
@@ -158,7 +210,7 @@ function RankingPage({ active, data, loading, error, mode, onModeChange, onBack,
             <div class="logo ranking-logo">RKG</div>
             <div class="hdr-t">
               <h1>Ranking Persentase Pemborosan</h1>
-              <span>Top 10 daerah dengan persentase pemborosan terbesar</span>
+              <span>Top 10 {rankLabel} dengan persentase pemborosan terbesar</span>
             </div>
           </div>
           <div class="hdr-r">
@@ -172,7 +224,7 @@ function RankingPage({ active, data, loading, error, mode, onModeChange, onBack,
           <div class="ranking-hero">
             <div>
               <div class="ranking-kicker">Leaderboard</div>
-              <h2>Daerah dengan persentase pemborosan terbesar</h2>
+              <h2>{rankLabel} dengan persentase pemborosan terbesar</h2>
               <p>
                 Persentase dihitung dari total potensi pemborosan dibagi total pagu. Hanya daerah dengan
                 pagu positif yang dihitung.
@@ -181,6 +233,13 @@ function RankingPage({ active, data, loading, error, mode, onModeChange, onBack,
             <div class="ranking-hero-actions">
               <div class="ranking-toggle">
                 <button
+                  class={`ranking-toggle-btn${isCentralMode ? ' a' : ''}`}
+                  type="button"
+                  onClick={() => onModeChange('central')}
+                >
+                  K/L
+                </button>
+                <button
                   class={`ranking-toggle-btn${isProvinceMode ? ' a' : ''}`}
                   type="button"
                   onClick={() => onModeChange('province')}
@@ -188,7 +247,7 @@ function RankingPage({ active, data, loading, error, mode, onModeChange, onBack,
                   Provinsi
                 </button>
                 <button
-                  class={`ranking-toggle-btn${!isProvinceMode ? ' a' : ''}`}
+                  class={`ranking-toggle-btn${!isProvinceMode && !isCentralMode ? ' a' : ''}`}
                   type="button"
                   onClick={() => onModeChange('kabkota')}
                 >
@@ -196,7 +255,7 @@ function RankingPage({ active, data, loading, error, mode, onModeChange, onBack,
                 </button>
               </div>
               <div class="ranking-note">
-                {ranking.entries.length} dari {ranking.sourceCount} daerah ditampilkan
+                {ranking.entries.length} dari {ranking.sourceCount} data ditampilkan
                 {ranking.excludedCount > 0 ? ` · ${ranking.excludedCount} daerah dengan pagu nol/tidak valid dilewati` : ''}
               </div>
             </div>
@@ -215,6 +274,28 @@ function RankingPage({ active, data, loading, error, mode, onModeChange, onBack,
               <span>Total sumber</span>
               <strong>{formatNumber(ranking.sourceCount)}</strong>
             </div>
+          </div>
+
+          <div class="ranking-profile">
+            <div class="ranking-profile-left">
+              <div class="ranking-profile-avatar" aria-hidden="true">
+                <span>{profile.avatar}</span>
+              </div>
+              <div class="ranking-profile-copy">
+                <div class="ranking-profile-kicker">{profile.eyebrow}</div>
+                <h3>{profile.title}</h3>
+                <p>{profile.subtitle}</p>
+              </div>
+            </div>
+            <div class="ranking-profile-meta">
+              {profile.meta.map((item) => (
+                <div class="ranking-profile-field">
+                  <span>{item.label}</span>
+                  <strong>{item.value}</strong>
+                </div>
+              ))}
+            </div>
+            <div class="ranking-profile-note">{profile.note}</div>
           </div>
 
           {content}
