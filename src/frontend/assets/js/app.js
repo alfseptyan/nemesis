@@ -34,6 +34,11 @@
 
   const dom = {
     kpi: document.getElementById('kpi'),
+    kpiModalOverlay: document.getElementById('kpiModalOverlay'),
+    kpiModalTitle: document.getElementById('kpiModalTitle'),
+    kpiModalSub: document.getElementById('kpiModalSub'),
+    kpiModalBody: document.getElementById('kpiModalBody'),
+    kpiModalClose: document.getElementById('kpiModalClose'),
     mapRoot: document.getElementById('map'),
     mapFilters: document.getElementById('mf'),
     tabs: document.getElementById('tabs'),
@@ -69,6 +74,33 @@
     { key: 'high', label: 'High' },
     { key: 'absurd', label: 'Absurd' },
   ];
+
+  const KPI_HELP = {
+    totalPotentialWaste: {
+      label: 'Total Potensi Pemborosan',
+      sublabel: 'Akumulasi risiko dari seluruh paket yang terdeteksi.',
+      body:
+        'Angka ini menunjukkan estimasi potensi pemborosan yang dihitung dari seluruh paket di dashboard. Ini adalah indikator risiko audit, bukan kerugian yang sudah pasti terjadi.',
+    },
+    priorityPackages: {
+      label: 'Paket Prioritas Audit',
+      sublabel: 'Paket yang perlu ditinjau lebih dulu.',
+      body:
+        'Sebuah paket masuk kategori prioritas jika salah satu dari dua kondisi ini terpenuhi: ada potensi pemborosan terdeteksi (potentialWaste > 0), atau risk_score mencapai minimal 2. Di backend, risk_score dibentuk dari isMencurigakan + isPemborosan + skor severity (low=1, med=2, high=3, absurd=4).',
+    },
+    totalBudget: {
+      label: 'Total Pagu Teraudit',
+      sublabel: 'Akumulasi anggaran yang tercakup dalam analisis.',
+      body:
+        'Ini adalah total pagu atau anggaran dari seluruh paket yang berhasil dianalisis di dashboard. Angka ini membantu membaca skala cakupan audit secara keseluruhan.',
+    },
+    mappedPackages: {
+      label: 'Paket Terpetakan',
+      sublabel: 'Paket yang sudah punya lokasi teridentifikasi.',
+      body:
+        'Jumlah paket yang sudah berhasil dipetakan ke wilayah administratif dibanding total paket yang terdeteksi. Semakin tinggi nilainya, semakin lengkap cakupan visual peta dan analisis wilayah.',
+    },
+  };
 
   let dashboardData = null;
   let regionsByKey = new Map();
@@ -348,9 +380,16 @@
     dom.kpi.innerHTML = cards
       .map(
         (item) =>
-          `<div class="kc"><div class="kl">${escapeHtml(item.label)}</div><div class="kv">${escapeHtml(
-            item.value
-          )}</div><div class="ks">${escapeHtml(item.sublabel)}</div></div>`
+          `<div class="kc">` +
+          `<div class="kc-head">` +
+          `<div class="kl">${escapeHtml(item.label)}</div>` +
+          `<button class="kc-help-btn" type="button" title="Lihat keterangan" aria-label="Lihat keterangan ${escapeAttr(
+            item.label
+          )}" onclick="${actionCall('openKpiHelpModal', item.helpKey)}">i</button>` +
+          `</div>` +
+          `<div class="kv">${escapeHtml(item.value)}</div>` +
+          `<div class="ks">${escapeHtml(item.sublabel)}</div>` +
+          `</div>`
       )
       .join('');
   }
@@ -368,14 +407,30 @@
 
   function renderBootstrapLoading() {
     renderKpiCards([
-      { label: 'Total Potensi Pemborosan', value: '...', sublabel: 'Menghitung agregat audit' },
-      { label: 'Paket Prioritas Audit', value: '...', sublabel: 'Memuat daftar area' },
+      {
+        label: 'Total Potensi Pemborosan',
+        value: '...',
+        sublabel: 'Menghitung agregat audit',
+        helpKey: 'totalPotentialWaste',
+      },
+      {
+        label: 'Paket Prioritas Audit',
+        value: '...',
+        sublabel: 'Memuat daftar area',
+        helpKey: 'priorityPackages',
+      },
       {
         label: 'Total Pagu Teraudit',
         value: '...',
         sublabel: 'Menyiapkan peta kab/kota dan provinsi',
+        helpKey: 'totalBudget',
       },
-      { label: 'Paket Terpetakan', value: '...', sublabel: 'Memeriksa cakupan lokasi' },
+      {
+        label: 'Paket Terpetakan',
+        value: '...',
+        sublabel: 'Memeriksa cakupan lokasi',
+        helpKey: 'mappedPackages',
+      },
     ]);
     renderSidebarMessage('Memuat audit pengadaan per area...', false);
     setMapStatus('Memuat peta audit...', false);
@@ -383,10 +438,30 @@
 
   function renderBootstrapError(error) {
     renderKpiCards([
-      { label: 'Total Potensi Pemborosan', value: '-', sublabel: 'Backend belum siap' },
-      { label: 'Paket Prioritas Audit', value: '-', sublabel: 'Periksa ingest hasil analyze' },
-      { label: 'Total Pagu Teraudit', value: '-', sublabel: 'Ulangi db:reset bila perlu' },
-      { label: 'Paket Terpetakan', value: '-', sublabel: 'Map belum dapat dibuat' },
+      {
+        label: 'Total Potensi Pemborosan',
+        value: '-',
+        sublabel: 'Backend belum siap',
+        helpKey: 'totalPotentialWaste',
+      },
+      {
+        label: 'Paket Prioritas Audit',
+        value: '-',
+        sublabel: 'Periksa ingest hasil analyze',
+        helpKey: 'priorityPackages',
+      },
+      {
+        label: 'Total Pagu Teraudit',
+        value: '-',
+        sublabel: 'Ulangi db:reset bila perlu',
+        helpKey: 'totalBudget',
+      },
+      {
+        label: 'Paket Terpetakan',
+        value: '-',
+        sublabel: 'Map belum dapat dibuat',
+        helpKey: 'mappedPackages',
+      },
     ]);
     renderSidebarMessage(`Gagal memuat dashboard audit: ${error}`, true);
     setMapStatus(`Gagal memuat dashboard audit: ${error}`, true);
@@ -567,21 +642,25 @@
         label: 'Total Potensi Pemborosan',
         value: `Rp ${formatCompactCurrency(summary.totalPotentialWaste)}`,
         sublabel: 'Nilai nasional raw, tanpa duplikasi multi-lokasi',
+        helpKey: 'totalPotentialWaste',
       },
       {
         label: 'Paket Prioritas Audit',
         value: formatNumber(summary.totalPriorityPackages),
         sublabel: `${formatNumber(summary.totalPackages)} paket teraudit`,
+        helpKey: 'priorityPackages',
       },
       {
         label: 'Total Pagu Teraudit',
         value: `Rp ${formatCompactCurrency(summary.totalBudget)}`,
         sublabel: 'Akumulasi pagu dari seluruh artifact audit',
+        helpKey: 'totalBudget',
       },
       {
         label: 'Paket Terpetakan',
         value: `${formatNumber(mappedPackages)} / ${formatNumber(summary.totalPackages)}`,
         sublabel: `${formatNumber(summary.unmappedPackages)} unmapped | ${formatNumber(summary.multiLocationPackages)} multi-lokasi`,
+        helpKey: 'mappedPackages',
       },
     ]);
   }
@@ -1278,6 +1357,38 @@
     loadAreaPackages();
   }
 
+  function openKpiHelpModal(helpKey) {
+    const help = KPI_HELP[helpKey];
+    if (!help || !dom.kpiModalOverlay) {
+      return;
+    }
+
+    if (dom.modal.classList.contains('open')) {
+      closeRegionModal();
+    }
+
+    if (window['AuditMap']) {
+      window['AuditMap'].closePopup();
+    }
+
+    dom.kpiModalTitle.textContent = help.label;
+    dom.kpiModalSub.textContent = help.sublabel;
+    dom.kpiModalBody.textContent = help.body;
+    dom.kpiModalOverlay.classList.add('open');
+    dom.kpiModalOverlay.setAttribute('aria-hidden', 'false');
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closeKpiHelpModal() {
+    if (!dom.kpiModalOverlay) {
+      return;
+    }
+
+    dom.kpiModalOverlay.classList.remove('open');
+    dom.kpiModalOverlay.setAttribute('aria-hidden', 'true');
+    document.body.style.overflow = dom.modal.classList.contains('open') ? 'hidden' : '';
+  }
+
   function closeRegionModal() {
     state.modalRequestId += 1;
     state.modal = {
@@ -1292,7 +1403,8 @@
       priorityOnly: false,
     };
     dom.modal.classList.remove('open');
-    document.body.style.overflow = '';
+    document.body.style.overflow =
+      dom.kpiModalOverlay && dom.kpiModalOverlay.classList.contains('open') ? 'hidden' : '';
   }
 
   function setSearch(value) {
@@ -1419,9 +1531,25 @@
   function bindEvents() {
     document.addEventListener('keydown', (event) => {
       if (event.key === 'Escape') {
+        if (dom.kpiModalOverlay && dom.kpiModalOverlay.classList.contains('open')) {
+          closeKpiHelpModal();
+          return;
+        }
         closeRegionModal();
       }
     });
+
+    if (dom.kpiModalOverlay) {
+      dom.kpiModalOverlay.addEventListener('click', (event) => {
+        if (event.target === dom.kpiModalOverlay) {
+          closeKpiHelpModal();
+        }
+      });
+    }
+
+    if (dom.kpiModalClose) {
+      dom.kpiModalClose.addEventListener('click', closeKpiHelpModal);
+    }
 
     dom.modal.addEventListener('click', (event) => {
       if (event.target === dom.modal) {
@@ -1479,7 +1607,9 @@
   window['dashboardActions'] = {
     changeModalPage,
     closeRegionModal,
+    closeKpiHelpModal,
     handlePackageRowKeydown,
+    openKpiHelpModal,
     openAreaModal,
     openOwnerModal,
     openPackageDetail,

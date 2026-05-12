@@ -19,7 +19,7 @@ export function App() {
         <div class="hdr-l">
           <div class="logo">AUD</div>
           <div class="hdr-t">
-            <h1>Nemesis <span class="hdr-dot">·</span> Audit Pengadaan Publik</h1>
+            <h1>Audit Pengadaan Publik</h1>
             <span>Deteksi anomali &amp; pemborosan &middot; SIRUP / INAPROC &middot; TA 2026</span>
           </div>
         </div>
@@ -31,6 +31,21 @@ export function App() {
 
       {/* ── KPI Strip ───────────────────────────────────────── */}
       <div class="kpi" id="kpi"></div>
+
+      {/* ── KPI Help Popup ──────────────────────────────────── */}
+      <div class="kpi-modal-overlay" id="kpiModalOverlay" aria-hidden="true">
+        <div class="kpi-modal" role="dialog" aria-modal="true" aria-labelledby="kpiModalTitle">
+          <div class="kpi-modal-top">
+            <div>
+              <div class="kpi-modal-kicker">Keterangan KPI</div>
+              <h2 id="kpiModalTitle"></h2>
+              <div class="kpi-modal-sub" id="kpiModalSub"></div>
+            </div>
+            <button class="kpi-modal-close" id="kpiModalClose" type="button">Tutup</button>
+          </div>
+          <div class="kpi-modal-body" id="kpiModalBody"></div>
+        </div>
+      </div>
 
       {/* ── Control Bar: Filter mode + Map toggle ───────────── */}
       <div class="ctrl-bar">
