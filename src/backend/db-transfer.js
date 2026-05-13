@@ -240,13 +240,37 @@ async function importSqlDump(sourcePath, targetPath) {
   let statements = [];
   let bufferedBytes = 0;
   let sqlApplied = false;
+  let skippedStatements = 0;
+  const skippedStatementErrors = [];
 
-  function flushStatements() {
+  function executeStatement(statement, statementLineNumber) {
+    try {
+      db.exec(statement);
+      return true;
+    } catch (error) {
+      skippedStatements += 1;
+      if (skippedStatementErrors.length < 10) {
+        skippedStatementErrors.push(`line ${statementLineNumber}: ${error.message}`);
+      }
+      return false;
+    }
+  }
+
+  function flushStatements(startLineNumber) {
     if (!statements.length) {
       return;
     }
 
-    db.exec(statements.join('\n'));
+    const batch = statements.join('\n');
+
+    try {
+      db.exec(batch);
+    } catch (error) {
+      for (let index = 0; index < statements.length; index += 1) {
+        executeStatement(statements[index], startLineNumber + index);
+      }
+    }
+
     statements = [];
     bufferedBytes = 0;
   }
@@ -271,15 +295,19 @@ async function importSqlDump(sourcePath, targetPath) {
         continue;
       }
 
+      if (trimmed === 'BEGIN TRANSACTION;' || trimmed === 'COMMIT;') {
+        continue;
+      }
+
       statements.push(line);
       bufferedBytes += Buffer.byteLength(line, 'utf8') + 1;
 
       if (bufferedBytes >= SQL_IMPORT_BATCH_BYTES) {
-        flushStatements();
+        flushStatements(lineNumber - statements.length + 1);
       }
     }
 
-    flushStatements();
+    flushStatements(lineNumber - statements.length + 1);
     sqlApplied = true;
   } catch (error) {
     throw new Error(`Failed to import SQL dump near line ${lineNumber}: ${error.message}`);
@@ -298,6 +326,15 @@ async function importSqlDump(sourcePath, targetPath) {
   } finally {
     importedDb.close();
     removeSqliteArtifacts(tempDbPath);
+  }
+
+  if (skippedStatements > 0) {
+    console.warn(
+      `Imported SQL dump with ${skippedStatements} skipped statement(s).` +
+        (skippedStatementErrors.length
+          ? ` First skipped lines: ${skippedStatementErrors.join(' | ')}`
+          : '')
+    );
   }
 }
 

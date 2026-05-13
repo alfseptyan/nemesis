@@ -1,4 +1,7 @@
 import { useEffect, useMemo, useState } from 'preact/hooks';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './components/ui/card.jsx';
+import { Skeleton } from './components/ui/skeleton.jsx';
+import { Tabs, TabsList, TabsTrigger } from './components/ui/tabs.jsx';
 
 const API_BASE_URL = (window['DASHBOARD_API_BASE_URL'] || '/api').replace(/\/$/, '');
 
@@ -224,72 +227,73 @@ function AboutPage({ active, onBack, onOpenRanking, onOpenAbout, theme, onToggle
             </div>
           </div>
 
-          <section class="about-card">
-            <div class="about-section-head">
-              <div>
-                <div class="about-section-kicker">Ringkasan Model</div>
-                <h3>Model dan metadata utama</h3>
-              </div>
-            </div>
-            <div class="about-meta-grid">
+          <Card class="about-card">
+            <CardHeader class="about-card-head">
+              <div class="about-section-kicker">Ringkasan Model</div>
+              <CardTitle>Model dan metadata utama</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div class="about-meta-grid">
               {ABOUT_MODEL_META.map((item) => (
                 <div class="about-meta-item">
                   <span>{item.label}</span>
                   <strong>{item.value}</strong>
                 </div>
               ))}
-            </div>
-            <div class="about-note">
+              </div>
+              <div class="about-note">
               Hasil klasifikasi ini dihasilkan oleh AI dan dapat keliru. Informasi pada dashboard sebaiknya
               digunakan sebagai acuan awal untuk membantu pemantauan publik, bukan sebagai satu-satunya dasar
               penilaian.
-            </div>
-            <p class="about-copy">
+              </div>
+              <p class="about-copy">
               Model diarahkan untuk menilai berdasarkan data yang tersedia, terutama judul paket, pagu,
               spesifikasi, kuantitas, dan konteks lembaga. Model juga diarahkan agar tidak menaikkan
               klasifikasi hanya karena data tidak lengkap.
-            </p>
-          </section>
+              </p>
+            </CardContent>
+          </Card>
 
-          <section class="about-card about-prompt-card">
-            <div class="about-section-head">
-              <div>
-                <div class="about-section-kicker">Prompt</div>
-                <h3>Instruksi klasifikasi</h3>
+          <Card class="about-card about-prompt-card">
+            <CardHeader class="about-card-head">
+              <div class="about-section-kicker">Prompt</div>
+              <CardTitle>Instruksi klasifikasi</CardTitle>
+              <CardDescription>Prompt dan struktur output yang dipakai oleh model.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div class="about-code-block">
+                <div class="about-code-label">System Prompt</div>
+                <pre>{ABOUT_PROMPT}</pre>
               </div>
-            </div>
-            <div class="about-code-block">
-              <div class="about-code-label">System Prompt</div>
-              <pre>{ABOUT_PROMPT}</pre>
-            </div>
-            <div class="about-code-block">
-              <div class="about-code-label">Structured Output</div>
-              <pre>{ABOUT_STRUCTURED_OUTPUT}</pre>
-            </div>
-          </section>
+              <div class="about-code-block">
+                <div class="about-code-label">Structured Output</div>
+                <pre>{ABOUT_STRUCTURED_OUTPUT}</pre>
+              </div>
+            </CardContent>
+          </Card>
 
-          <section class="about-card">
-            <div class="about-section-head">
-              <div>
-                <div class="about-section-kicker">Keterangan Proyek</div>
-                <h3>Melanjutkan Nemesis</h3>
-              </div>
-            </div>
-            <div class="about-project">
-              <div>
+          <Card class="about-card">
+            <CardHeader class="about-card-head">
+              <div class="about-section-kicker">Keterangan Proyek</div>
+              <CardTitle>Melanjutkan Nemesis</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div class="about-project">
+                <div>
                 Proyek ini melanjutkan pengembangan dari Nemesis yang tersedia di{' '}
                 <a href="https://github.com/assai-id/nemesis" target="_blank" rel="noreferrer">
                   github.com/assai-id/nemesis
                 </a>
                 . Fokusnya tetap pada audit pengadaan publik, klasifikasi risiko, dan visualisasi data yang
                 mudah dipakai oleh tim pemantau.
-              </div>
-              <div class="about-project-note">
+                </div>
+                <div class="about-project-note">
                 Seluruh tampilan about ini disiapkan agar struktur penjelasan model tetap rapi, singkat, dan
                 mudah diperluas ketika metadata baru sudah tersedia.
+                </div>
               </div>
-            </div>
-          </section>
+            </CardContent>
+          </Card>
         </div>
       </div>
     </div>
@@ -477,35 +481,37 @@ function RankingPage({
 
 function PageNav({ activeView, onOpenDashboard, onOpenRanking, onOpenAbout }) {
   return (
-    <div class="page-nav" role="navigation" aria-label="Pilih halaman">
-      <button
-        class={`page-nav-btn${activeView === 'dashboard' ? ' a' : ''}`}
-        type="button"
-        disabled={activeView === 'dashboard'}
-        aria-current={activeView === 'dashboard' ? 'page' : undefined}
-        onClick={onOpenDashboard}
-      >
-        Dashboard
-      </button>
-      <button
-        class={`page-nav-btn${activeView === 'ranking' ? ' a' : ''}`}
-        type="button"
-        disabled={activeView === 'ranking'}
-        aria-current={activeView === 'ranking' ? 'page' : undefined}
-        onClick={onOpenRanking}
-      >
-        Ranking
-      </button>
-      <button
-        class={`page-nav-btn${activeView === 'about' ? ' a' : ''}`}
-        type="button"
-        disabled={activeView === 'about'}
-        aria-current={activeView === 'about' ? 'page' : undefined}
-        onClick={onOpenAbout}
-      >
-        Tentang
-      </button>
-    </div>
+    <Tabs class="page-nav" role="navigation" aria-label="Pilih halaman">
+      <TabsList class="page-nav-list">
+        <TabsTrigger
+          active={activeView === 'dashboard'}
+          type="button"
+          disabled={activeView === 'dashboard'}
+          aria-current={activeView === 'dashboard' ? 'page' : undefined}
+          onClick={onOpenDashboard}
+        >
+          Dashboard
+        </TabsTrigger>
+        <TabsTrigger
+          active={activeView === 'ranking'}
+          type="button"
+          disabled={activeView === 'ranking'}
+          aria-current={activeView === 'ranking' ? 'page' : undefined}
+          onClick={onOpenRanking}
+        >
+          Ranking
+        </TabsTrigger>
+        <TabsTrigger
+          active={activeView === 'about'}
+          type="button"
+          disabled={activeView === 'about'}
+          aria-current={activeView === 'about' ? 'page' : undefined}
+          onClick={onOpenAbout}
+        >
+          Tentang
+        </TabsTrigger>
+      </TabsList>
+    </Tabs>
   );
 }
 
@@ -539,18 +545,24 @@ function ThemeToggle({ theme, onToggle }) {
 function LoadingScene({ title, subtitle, note }) {
   return (
     <div class="loading-scene" role="status" aria-live="polite">
-      <div class="loading-scene-card">
-        <div class="loading-scene-spinner" aria-hidden="true"></div>
-        <div class="loading-scene-kicker">Memuat data</div>
-        <div class="loading-scene-title">{title}</div>
-        <div class="loading-scene-sub">{subtitle}</div>
-        {note ? <div class="loading-scene-note">{note}</div> : null}
-        <div class="loading-scene-bars" aria-hidden="true">
-          <span></span>
-          <span></span>
-          <span></span>
-        </div>
-      </div>
+      <Card class="loading-scene-card">
+        <CardHeader class="loading-scene-head">
+          <div class="loading-scene-spinner" aria-hidden="true"></div>
+          <div>
+            <div class="loading-scene-kicker">Memuat data</div>
+            <CardTitle class="loading-scene-title">{title}</CardTitle>
+            <CardDescription class="loading-scene-sub">{subtitle}</CardDescription>
+          </div>
+        </CardHeader>
+        <CardContent class="loading-scene-content">
+          {note ? <div class="loading-scene-note">{note}</div> : null}
+          <div class="loading-scene-bars" aria-hidden="true">
+            <Skeleton />
+            <Skeleton />
+            <Skeleton />
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

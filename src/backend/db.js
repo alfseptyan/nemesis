@@ -63,15 +63,62 @@ function ensureDataDirectory() {
   fs.mkdirSync(DATA_DIR, { recursive: true });
 }
 
+function initializeDatabase(db, filePath) {
+  db.pragma('busy_timeout = 5000');
+  db.pragma('foreign_keys = ON');
+
+  try {
+    const journalMode = db.pragma('journal_mode = WAL', { simple: true });
+    if (String(journalMode).toLowerCase() !== 'wal') {
+      console.warn(`[DB] WAL was not enabled for ${filePath}; current mode: ${journalMode}`);
+    }
+  } catch (error) {
+    const message = String(error?.message || error);
+    if (error?.code === 'SQLITE_BUSY' || message.toLowerCase().includes('locked')) {
+      console.warn(`[DB] ${filePath} is busy, continuing without forcing WAL: ${message}`);
+      return;
+    }
+
+    throw error;
+  }
+}
+
+function openCandidateDatabase(filePath) {
+  const db = new Database(filePath);
+
+  try {
+    initializeDatabase(db, filePath);
+    return db;
+  } catch (error) {
+    try {
+      db.close();
+    } catch {
+      // Ignore close errors during fallback.
+    }
+
+    throw error;
+  }
+}
+
 function openDatabase() {
   ensureDataDirectory();
   const runtimeDbPath = resolveRuntimeDbPath();
+  const candidatePaths = Array.from(
+    new Set([runtimeDbPath, ...listExistingSqliteFiles(DATA_DIR)])
+  );
 
-  const db = new Database(runtimeDbPath);
-  db.pragma('journal_mode = WAL');
-  db.pragma('foreign_keys = ON');
+  let lastError = null;
 
-  return db;
+  for (const filePath of candidatePaths) {
+    try {
+      return openCandidateDatabase(filePath);
+    } catch (error) {
+      lastError = error;
+      console.warn(`[DB] Failed to open ${filePath}: ${error.message}`);
+    }
+  }
+
+  throw lastError || new Error('Unable to open any SQLite database candidate.');
 }
 
 export {

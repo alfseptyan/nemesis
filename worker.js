@@ -69,8 +69,25 @@ async function startServer() {
 
   if (!isProduction) {
     // Development mode: use Vite's middleware
+    const { default: preact } = await import('@preact/preset-vite');
     const { createServer } = await import('vite');
     const vite = await createServer({
+      configFile: false,
+      root: path.join(__dirname, 'src/frontend'),
+      envDir: __dirname,
+      plugins: [preact()],
+      resolve: {
+        alias: {
+          react: 'preact/compat',
+          'react-dom': 'preact/compat',
+          'react-dom/client': 'preact/compat/client',
+          'react/jsx-runtime': 'preact/jsx-runtime',
+          '@': path.join(__dirname, 'src/frontend'),
+        },
+      },
+      css: {
+        postcss: path.join(__dirname, 'postcss.config.cjs'),
+      },
       server: { middlewareMode: true },
       appType: 'spa',
     });

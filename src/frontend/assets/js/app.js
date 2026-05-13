@@ -385,15 +385,17 @@
     dom.kpi.innerHTML = cards
       .map(
         (item) =>
-          `<div class="kc">` +
-          `<div class="kc-head">` +
+          `<div class="ui-card kc">` +
+          `<div class="ui-card-header kc-head">` +
           `<div class="kl">${escapeHtml(item.label)}</div>` +
           `<button class="kc-help-btn" type="button" title="Lihat keterangan" aria-label="Lihat keterangan ${escapeAttr(
             item.label
           )}" onclick="${actionCall('openKpiHelpModal', item.helpKey)}">i</button>` +
           `</div>` +
+          `<div class="ui-card-content">` +
           `<div class="kv">${escapeHtml(item.value)}</div>` +
           `<div class="ks">${escapeHtml(item.sublabel)}</div>` +
+          `</div>` +
           `</div>`
       )
       .join('');
@@ -405,16 +407,16 @@
 
   function renderSidebarLoadingScene() {
     dom.sidebarContent.innerHTML =
-      '<div class="sidebar-loading-scene">' +
-      '<div class="sidebar-loading-head">' +
+      '<div class="sidebar-loading-scene ui-card">' +
+      '<div class="sidebar-loading-head ui-card-header">' +
       '<div class="sidebar-loading-badge">Loading</div>' +
       '<div class="sidebar-loading-title">Menyiapkan sidebar kanan</div>' +
       '<div class="sidebar-loading-sub">Memuat data wilayah, filter, dan daftar kartu.</div>' +
       '</div>' +
-      '<div class="sidebar-loading-list">' +
-      '<div class="sidebar-loading-card"></div>' +
-      '<div class="sidebar-loading-card"></div>' +
-      '<div class="sidebar-loading-card"></div>' +
+      '<div class="sidebar-loading-list ui-card-content">' +
+      '<div class="sidebar-loading-card ui-skeleton"></div>' +
+      '<div class="sidebar-loading-card ui-skeleton"></div>' +
+      '<div class="sidebar-loading-card ui-skeleton"></div>' +
       '</div>' +
       '<div class="sidebar-loading-note">Jika tombol terasa belum bisa dipencet, tunggu loading selesai dan cek alasan akses di atas.</div>' +
       '</div>';
@@ -465,32 +467,38 @@
   }
 
   function renderBootstrapLoading() {
-    renderKpiCards([
+    dom.kpi.innerHTML = [
       {
         label: 'Total Potensi Pemborosan',
-        value: '...',
         sublabel: 'Menghitung agregat audit',
-        helpKey: 'totalPotentialWaste',
       },
       {
         label: 'Paket Prioritas Audit',
-        value: '...',
         sublabel: 'Memuat daftar area',
-        helpKey: 'priorityPackages',
       },
       {
         label: 'Total Pagu Teraudit',
-        value: '...',
         sublabel: 'Menyiapkan peta kab/kota dan provinsi',
-        helpKey: 'totalBudget',
       },
       {
         label: 'Paket Terpetakan',
-        value: '...',
         sublabel: 'Memeriksa cakupan lokasi',
-        helpKey: 'mappedPackages',
       },
-    ]);
+    ]
+      .map(
+        (item) =>
+          `<div class="ui-card kc">` +
+          `<div class="ui-card-header kc-head">` +
+          `<div class="kl">${escapeHtml(item.label)}</div>` +
+          `<div class="ui-skeleton kpi-help-skeleton"></div>` +
+          `</div>` +
+          `<div class="ui-card-content">` +
+          `<div class="ui-skeleton kpi-value-skeleton"></div>` +
+          `<div class="ui-skeleton kpi-sub-skeleton"></div>` +
+          `</div>` +
+          `</div>`
+      )
+      .join('');
     renderSidebarLoadingScene();
     renderSidebarAccessHint();
     setMapStatus('Memuat peta audit...', false);
@@ -837,6 +845,14 @@
       return;
     }
 
+    if (!dashboardData.summary || Number(dashboardData.summary.totalPackages) <= 0) {
+      renderSidebarMessage(
+        'Database lokal belum berisi data paket atau wilayah. Jalankan `npm run db:reset` atau impor backup database agar peta bisa muncul.',
+        true
+      );
+      return;
+    }
+
     const sidebarActive = isSidebarActiveMode();
 
     if (!sidebarActive) {
@@ -1095,7 +1111,10 @@
     const geo = getActiveGeo();
 
     if (!geo || !Array.isArray(geo.features) || !geo.features.length) {
-      setMapStatus('Tidak ada geometri untuk mode peta saat ini.', true);
+      setMapStatus(
+        'Database lokal belum berisi geometri wilayah. Jalankan `npm run db:reset` atau impor backup database.',
+        true
+      );
       return;
     }
 
@@ -1728,6 +1747,17 @@
       renderFilterChips();
       renderTabs();
       renderSidebarContent();
+
+      if (
+        !dashboardData.summary ||
+        Number(dashboardData.summary.totalPackages) <= 0 ||
+        !dashboardData.regions.length
+      ) {
+        setMapStatus(
+          'Database lokal belum berisi data paket atau wilayah. Jalankan `npm run db:reset` atau impor backup database.',
+          true
+        );
+      }
     } catch (error) {
       renderBootstrapError(formatFetchError(error));
     }
