@@ -39,6 +39,45 @@ function getInitialTheme() {
   return 'light';
 }
 
+const ABOUT_MODEL_META = [
+  { label: 'Model', value: 'GPT-5.4' },
+  { label: 'Fine-tuned', value: 'No' },
+  { label: 'SiRUP Data Version', value: '10 April 2026' },
+  { label: 'Analyze Date', value: '14 April 2026' },
+];
+
+const ABOUT_PROMPT = `Kamu adalah auditor pemerintah. Tugasmu meng audit pengadaan pemerintah dan mendeteksi anomali, kecurangan dan item pengadaan yang tidak pantas. Tolong analisa item pengadaan ini
+
+{Item}`;
+
+const ABOUT_STRUCTURED_OUTPUT = `{
+  #data
+  paket: Item.Paket
+  dalamNegeri: Item.ProdukDalamNegeri
+  jenisPengadaan: Item.JenisPengadaan
+  metode: Item.Metode
+  lembaga: Item.K/L/PD ### ex: KOMDIGI
+  satker: Item.SatuanKerja
+  lokasi: Item.Lokasi
+  id: Item.Id
+  pagu: Item.Pagu
+  pemilihanDate: Item.Pemilihan
+
+  #detail
+  sumberDana: Item.Detail.SumberDana ?
+  isUMKM: Item.Detail.UsahaKecilKoperasi
+  volumePekerjaan: Item.Detail.VolumePekerjaan
+  uraianPekerjaan: Item.Detail.UraianPekerjaan
+  spesifikasiPekerjaan: Item.Detail.UraianPekerjaan
+
+  #AI Generated
+  potensiPemborosan: double ### Total potensi pemborosan anggaran karena mark up / pembelian barang yang tidak perlu
+  tags: {
+    isInappropriate: low/med/high/absurd
+    inappropriateReason: string max 1000 chars, optional, only if isInappropriate is high
+  }
+}`;
+
 function buildWasteRankingEntries(data, mode) {
   if (!data) {
     return {
@@ -143,7 +182,133 @@ function getRankingProfile(mode) {
   };
 }
 
-function RankingPage({ active, data, loading, error, mode, onModeChange, onBack, theme, onToggleTheme }) {
+function AboutPage({ active, onBack, onOpenRanking, onOpenAbout, theme, onToggleTheme }) {
+  return (
+    <div class={`about-shell${active ? ' is-active' : ''}`} aria-hidden={active ? 'false' : 'true'}>
+      <div class="about-page">
+        <div class="hdr about-hdr">
+          <div class="hdr-l">
+            <div class="logo about-logo">N</div>
+            <div class="hdr-t">
+              <h1>Transparansi Algoritma</h1>
+              <span>Bagaimana klasifikasi pengadaan dilakukan</span>
+            </div>
+          </div>
+          <div class="hdr-r">
+            <div class="yr">About</div>
+            <PageNav
+              activeView="about"
+              onOpenDashboard={onBack}
+              onOpenRanking={onOpenRanking}
+              onOpenAbout={onOpenAbout}
+            />
+            <ThemeToggle theme={theme} onToggle={onToggleTheme} />
+          </div>
+        </div>
+
+        <div class="about-body">
+          <div class="about-hero">
+            <div class="about-hero-copy">
+              <div class="about-kicker">Transparansi Algoritma</div>
+              <h2>Bagaimana klasifikasi pengadaan dilakukan</h2>
+              <p>
+                Halaman ini menjelaskan model, prompt, format output, dan metadata analisis yang digunakan
+                dalam klasifikasi paket pengadaan pada dashboard Nemesis.
+              </p>
+            </div>
+            <div class="about-hero-actions">
+              <button class="ranking-back-btn" type="button" onClick={onBack}>
+                Kembali ke Dashboard
+              </button>
+              <div class="about-hint">Klasifikasi ini membantu pemantauan awal, bukan penilaian final.</div>
+            </div>
+          </div>
+
+          <section class="about-card">
+            <div class="about-section-head">
+              <div>
+                <div class="about-section-kicker">Ringkasan Model</div>
+                <h3>Model dan metadata utama</h3>
+              </div>
+            </div>
+            <div class="about-meta-grid">
+              {ABOUT_MODEL_META.map((item) => (
+                <div class="about-meta-item">
+                  <span>{item.label}</span>
+                  <strong>{item.value}</strong>
+                </div>
+              ))}
+            </div>
+            <div class="about-note">
+              Hasil klasifikasi ini dihasilkan oleh AI dan dapat keliru. Informasi pada dashboard sebaiknya
+              digunakan sebagai acuan awal untuk membantu pemantauan publik, bukan sebagai satu-satunya dasar
+              penilaian.
+            </div>
+            <p class="about-copy">
+              Model diarahkan untuk menilai berdasarkan data yang tersedia, terutama judul paket, pagu,
+              spesifikasi, kuantitas, dan konteks lembaga. Model juga diarahkan agar tidak menaikkan
+              klasifikasi hanya karena data tidak lengkap.
+            </p>
+          </section>
+
+          <section class="about-card about-prompt-card">
+            <div class="about-section-head">
+              <div>
+                <div class="about-section-kicker">Prompt</div>
+                <h3>Instruksi klasifikasi</h3>
+              </div>
+            </div>
+            <div class="about-code-block">
+              <div class="about-code-label">System Prompt</div>
+              <pre>{ABOUT_PROMPT}</pre>
+            </div>
+            <div class="about-code-block">
+              <div class="about-code-label">Structured Output</div>
+              <pre>{ABOUT_STRUCTURED_OUTPUT}</pre>
+            </div>
+          </section>
+
+          <section class="about-card">
+            <div class="about-section-head">
+              <div>
+                <div class="about-section-kicker">Keterangan Proyek</div>
+                <h3>Melanjutkan Nemesis</h3>
+              </div>
+            </div>
+            <div class="about-project">
+              <div>
+                Proyek ini melanjutkan pengembangan dari Nemesis yang tersedia di{' '}
+                <a href="https://github.com/assai-id/nemesis" target="_blank" rel="noreferrer">
+                  github.com/assai-id/nemesis
+                </a>
+                . Fokusnya tetap pada audit pengadaan publik, klasifikasi risiko, dan visualisasi data yang
+                mudah dipakai oleh tim pemantau.
+              </div>
+              <div class="about-project-note">
+                Seluruh tampilan about ini disiapkan agar struktur penjelasan model tetap rapi, singkat, dan
+                mudah diperluas ketika metadata baru sudah tersedia.
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function RankingPage({
+  active,
+  data,
+  loading,
+  error,
+  mode,
+  onModeChange,
+  onBack,
+  onOpenRanking,
+  onOpenAbout,
+  theme,
+  onToggleTheme,
+}) {
   const ranking = useMemo(() => buildWasteRankingEntries(data, mode), [data, mode]);
   const isProvinceMode = mode === 'province';
   const isCentralMode = mode === 'central';
@@ -215,7 +380,12 @@ function RankingPage({ active, data, loading, error, mode, onModeChange, onBack,
           </div>
           <div class="hdr-r">
             <div class="yr">Ranking</div>
-            <PageNav activeView="ranking" onOpenDashboard={onBack} onOpenRanking={onBack} />
+            <PageNav
+              activeView="ranking"
+              onOpenDashboard={onBack}
+              onOpenRanking={onOpenRanking}
+              onOpenAbout={onOpenAbout}
+            />
             <ThemeToggle theme={theme} onToggle={onToggleTheme} />
           </div>
         </div>
@@ -305,7 +475,7 @@ function RankingPage({ active, data, loading, error, mode, onModeChange, onBack,
   );
 }
 
-function PageNav({ activeView, onOpenDashboard, onOpenRanking }) {
+function PageNav({ activeView, onOpenDashboard, onOpenRanking, onOpenAbout }) {
   return (
     <div class="page-nav" role="navigation" aria-label="Pilih halaman">
       <button
@@ -325,6 +495,15 @@ function PageNav({ activeView, onOpenDashboard, onOpenRanking }) {
         onClick={onOpenRanking}
       >
         Ranking
+      </button>
+      <button
+        class={`page-nav-btn${activeView === 'about' ? ' a' : ''}`}
+        type="button"
+        disabled={activeView === 'about'}
+        aria-current={activeView === 'about' ? 'page' : undefined}
+        onClick={onOpenAbout}
+      >
+        Tentang
       </button>
     </div>
   );
@@ -377,7 +556,13 @@ function LoadingScene({ title, subtitle, note }) {
 }
 
 export function App() {
-  const [view, setView] = useState(() => (window.location.hash === '#ranking' ? 'ranking' : 'dashboard'));
+  const [view, setView] = useState(() =>
+    window.location.hash === '#ranking'
+      ? 'ranking'
+      : window.location.hash === '#about'
+        ? 'about'
+        : 'dashboard'
+  );
   const [theme, setTheme] = useState(getInitialTheme);
   const [rankingMode, setRankingMode] = useState('kabkota');
   const [bootstrapData, setBootstrapData] = useState(null);
@@ -422,7 +607,17 @@ export function App() {
 
   useEffect(() => {
     const syncView = () => {
-      setView(window.location.hash === '#ranking' ? 'ranking' : 'dashboard');
+      if (window.location.hash === '#ranking') {
+        setView('ranking');
+        return;
+      }
+
+      if (window.location.hash === '#about') {
+        setView('about');
+        return;
+      }
+
+      setView('dashboard');
     };
 
     syncView();
@@ -434,6 +629,8 @@ export function App() {
     document.title =
       view === 'ranking'
         ? 'Ranking Persentase Pemborosan - LKPP 2026'
+        : view === 'about'
+          ? 'Transparansi Algoritma - LKPP 2026'
         : 'Audit Pengadaan Kab/Kota - LKPP 2026';
   }, [view]);
 
@@ -469,6 +666,15 @@ export function App() {
     setView('dashboard');
   };
 
+  const openAbout = () => {
+    if (window.location.hash !== '#about') {
+      window.location.hash = '#about';
+      return;
+    }
+
+    setView('about');
+  };
+
   const toggleTheme = () => {
     setTheme((current) => (current === 'dark' ? 'light' : 'dark'));
   };
@@ -476,8 +682,11 @@ export function App() {
   const isBootstrapLoading = !bootstrapData && !bootstrapError;
 
   return (
-    <div id="preact-wrapper" class={view === 'ranking' ? 'view-ranking' : 'view-dashboard'}>
-      <div class={`dashboard-shell${view === 'ranking' ? ' is-hidden' : ''}`}>
+    <div
+      id="preact-wrapper"
+      class={view === 'ranking' ? 'view-ranking' : view === 'about' ? 'view-about' : 'view-dashboard'}
+    >
+      <div class={`dashboard-shell${view === 'dashboard' ? '' : ' is-hidden'}`}>
         {isBootstrapLoading ? (
           <LoadingScene
             title="Menyiapkan dashboard audit"
@@ -496,7 +705,12 @@ export function App() {
           <div class="hdr-r">
             <div class="ll"><span class="ldot"></span>LIVE</div>
             <div class="yr">TA 2026</div>
-            <PageNav activeView={view} onOpenDashboard={openDashboard} onOpenRanking={openRanking} />
+            <PageNav
+              activeView={view}
+              onOpenDashboard={openDashboard}
+              onOpenRanking={openRanking}
+              onOpenAbout={openAbout}
+            />
             <ThemeToggle theme={theme} onToggle={toggleTheme} />
           </div>
         </div>
@@ -572,6 +786,16 @@ export function App() {
         mode={rankingMode}
         onModeChange={setRankingMode}
         onBack={openDashboard}
+        onOpenRanking={openRanking}
+        onOpenAbout={openAbout}
+        theme={theme}
+        onToggleTheme={toggleTheme}
+      />
+      <AboutPage
+        active={view === 'about'}
+        onBack={openDashboard}
+        onOpenRanking={openRanking}
+        onOpenAbout={openAbout}
         theme={theme}
         onToggleTheme={toggleTheme}
       />
