@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'preact/hooks';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './components/ui/card.jsx';
 import { Skeleton } from './components/ui/skeleton.jsx';
 import { Tabs, TabsList, TabsTrigger } from './components/ui/tabs.jsx';
+import { fetchKepalaDAerah, clearWikipediaCache } from './lib/wikipedia.js';
 
 const API_BASE_URL = (window['DASHBOARD_API_BASE_URL'] || '/api').replace(/\/$/, '');
 
@@ -317,10 +318,63 @@ function RankingPage({
   const isProvinceMode = mode === 'province';
   const isCentralMode = mode === 'central';
   const rankLabel = isCentralMode ? 'Kementerian/Lembaga' : isProvinceMode ? 'Provinsi' : 'Kab/Kota';
-  const profile = useMemo(() => getRankingProfile(mode), [mode]);
   const maxPercentage = ranking.entries.length
     ? Math.max(...ranking.entries.map((entry) => entry.percentage))
     : 0;
+
+  // ── Wikipedia: fetch kepala daerah untuk setiap entry ──────────────────────
+  const [wikiProfiles, setWikiProfiles] = useState({});
+  const [wikiLoading, setWikiLoading] = useState(false);
+
+  useEffect(() => {
+    if (!active || !ranking.entries.length) return;
+
+    let cancelled = false;
+    setWikiProfiles({});
+    setWikiLoading(true);
+    clearWikipediaCache(); // bersihkan cache lama saat mode / entries berubah
+
+    (async () => {
+      const results = {};
+      await Promise.all(
+        ranking.entries.map(async (entry) => {
+          const info = await fetchKepalaDAerah(entry.displayName, mode);
+          if (!cancelled && info) results[entry.displayName] = info;
+        })
+      );
+      if (!cancelled) {
+        setWikiProfiles(results);
+        setWikiLoading(false);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [active, ranking.entries, mode]);
+
+  // Profile card: ambil kepala daerah #1 dari Wikipedia, fallback ke placeholder
+  const topEntry        = ranking.entries[0];
+  const topWiki         = topEntry ? wikiProfiles[topEntry.displayName] : null;
+  const profileFallback = getRankingProfile(mode);
+
+  const profile = topWiki
+    ? {
+        eyebrow:    topWiki.role || profileFallback.eyebrow,
+        title:      topWiki.name,
+        subtitle:   topWiki.extract
+                      ? topWiki.extract.slice(0, 180) + (topWiki.extract.length > 180 ? '…' : '')
+                      : profileFallback.subtitle,
+        avatar:     profileFallback.avatar,
+        imageUrl:   topWiki.imageUrl,
+        isPortrait: topWiki.isPortrait,
+        articleUrl: topWiki.articleUrl,
+        meta: [
+          { label: 'Jabatan',    value: topWiki.role || profileFallback.eyebrow },
+          { label: 'Daerah',     value: topEntry.displayName },
+          { label: 'Pemborosan', value: `${formatPercentage(topEntry.percentage)}% dari pagu` },
+        ],
+        note: null,
+      }
+    : profileFallback;
 
   const content = (() => {
     if (error) {
@@ -349,6 +403,7 @@ function RankingPage({
       <div class="ranking-list">
         {ranking.entries.map((entry, index) => {
           const barWidth = maxPercentage > 0 ? Math.max(6, Math.round((entry.percentage / maxPercentage) * 100)) : 6;
+          const wiki = wikiProfiles[entry.displayName];
 
           return (
             <article class="ranking-item">
@@ -364,6 +419,40 @@ function RankingPage({
               <div class="ranking-bar">
                 <div class="ranking-bar-fill" style={{ width: `${barWidth}%` }}></div>
               </div>
+              {/* Kepala daerah dari Wikipedia */}
+              {wikiLoading && !wiki && (
+                <div class="ranking-item-leader loading">
+                  <Skeleton class="ranking-leader-avatar-sk" />
+                  <Skeleton class="ranking-leader-name-sk" />
+                </div>
+              )}
+              {wiki && (
+                <a
+                  href={wiki.articleUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="ranking-item-leader"
+                  title={`Buka profil ${wiki.name} di Wikipedia`}
+                >
+                  {wiki.imageUrl ? (
+                    <img
+                      src={wiki.imageUrl}
+                      alt={wiki.name}
+                      class="ranking-leader-avatar"
+                      loading="lazy"
+                    />
+                  ) : (
+                    <div class="ranking-leader-avatar-placeholder">
+                      {wiki.name?.charAt(0) ?? '?'}
+                    </div>
+                  )}
+                  <div class="ranking-leader-info">
+                    <span class="ranking-leader-role">{wiki.role}</span>
+                    <span class="ranking-leader-name">{wiki.name}</span>
+                    <span class="ranking-leader-source">Wikipedia ↗</span>
+                  </div>
+                </a>
+              )}
             </article>
           );
         })}
@@ -453,11 +542,35 @@ function RankingPage({
           <div class="ranking-profile">
             <div class="ranking-profile-left">
               <div class="ranking-profile-avatar" aria-hidden="true">
-                <span>{profile.avatar}</span>
+                {profile.imageUrl ? (
+                  <img
+                    src={profile.imageUrl}
+                    alt={profile.title}
+                    class="ranking-profile-photo"
+                    loading="lazy"
+                  />
+                ) : wikiLoading ? (
+                  <Skeleton class="ranking-profile-photo-skeleton" />
+                ) : (
+                  <span>{profile.avatar}</span>
+                )}
               </div>
               <div class="ranking-profile-copy">
                 <div class="ranking-profile-kicker">{profile.eyebrow}</div>
-                <h3>{profile.title}</h3>
+                <h3>
+                  {profile.title}
+                  {profile.articleUrl && (
+                    <a
+                      href={profile.articleUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      class="ranking-wiki-link"
+                      title="Buka di Wikipedia"
+                    >
+                      ↗
+                    </a>
+                  )}
+                </h3>
                 <p>{profile.subtitle}</p>
               </div>
             </div>
@@ -469,7 +582,7 @@ function RankingPage({
                 </div>
               ))}
             </div>
-            <div class="ranking-profile-note">{profile.note}</div>
+            {profile.note && <div class="ranking-profile-note">{profile.note}</div>}
           </div>
 
           {content}

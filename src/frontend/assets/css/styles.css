@@ -919,18 +919,129 @@ body {
 }
 .ranking-profile-avatar {
   flex-shrink: 0;
-  width: 58px;
-  height: 58px;
-  border-radius: 16px;
+  width: 80px;
+  height: 108px;           /* rasio 3:4 — pas untuk foto portrait kepala daerah */
+  border-radius: 12px;
+  overflow: hidden;
   display: grid;
   place-items: center;
   font-family: 'JetBrains Mono', monospace;
   font-size: 15px;
   font-weight: 800;
   color: var(--olive);
-  background: linear-gradient(135deg, rgba(161, 98, 7, 0.12), rgba(245, 158, 11, 0.18));
+  background: linear-gradient(135deg, rgba(161, 98, 7, 0.10), rgba(245, 158, 11, 0.14));
   border: 1px solid rgba(161, 98, 7, 0.14);
-  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.35);
+}
+.ranking-profile-photo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: top center;
+  display: block;
+}
+.ranking-profile-photo-skeleton {
+  width: 80px;
+  height: 108px;
+  border-radius: 12px;
+}
+.ranking-wiki-link {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 6px;
+  font-size: 12px;
+  color: var(--sage);
+  text-decoration: none;
+  font-weight: 400;
+  opacity: 0.8;
+  transition: opacity 0.15s;
+}
+.ranking-wiki-link:hover { opacity: 1; }
+
+/* ── Kepala daerah per ranking item ─────────────────────── */
+.ranking-item-leader {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--b1);
+  border: 1px solid var(--bd);
+  text-decoration: none;
+  color: inherit;
+  transition: border-color 0.15s, background 0.15s;
+}
+.ranking-item-leader:hover {
+  border-color: var(--sage);
+  background: var(--sage-g);
+}
+.ranking-item-leader.loading {
+  pointer-events: none;
+  align-items: center;
+}
+.ranking-leader-avatar {
+  width: 44px;
+  height: 58px;
+  border-radius: 8px;
+  object-fit: cover;
+  object-position: top center;
+  flex-shrink: 0;
+  border: 1px solid var(--bd);
+  background: var(--b2);
+  display: block;
+}
+.ranking-leader-avatar-placeholder {
+  width: 44px;
+  height: 58px;
+  border-radius: 8px;
+  background: var(--sage-g);
+  border: 1px solid var(--bd);
+  display: grid;
+  place-items: center;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--sage);
+  flex-shrink: 0;
+}
+.ranking-leader-avatar-sk {
+  width: 44px;
+  height: 58px;
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+.ranking-leader-name-sk {
+  width: 140px;
+  height: 16px;
+  border-radius: 4px;
+  margin-top: 4px;
+}
+.ranking-leader-info {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 1;
+  padding-top: 2px;
+}
+.ranking-leader-role {
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--sage);
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  line-height: 1;
+}
+.ranking-leader-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--t1);
+  line-height: 1.3;
+  word-break: break-word;
+}
+.ranking-leader-source {
+  margin-top: 1px;
+  font-size: 10px;
+  color: var(--sage);
+  font-weight: 500;
 }
 .ranking-profile-copy h3 {
   font-size: 16px;
