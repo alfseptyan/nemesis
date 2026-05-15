@@ -75,7 +75,7 @@ window['AuditMap'] = (() => {
       zoom: 5,
       minZoom: 4,
       maxZoom: 12,
-      style: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
+      style: 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json',
     });
   }
 
@@ -110,8 +110,8 @@ window['AuditMap'] = (() => {
       type: 'fill',
       source: SOURCE,
       paint: {
-        'fill-color': ['coalesce', ['get', 'fillColor'], '#243155'],
-        'fill-opacity': ['coalesce', ['get', 'fillOpacity'], 0.08],
+        'fill-color': ['coalesce', ['get', 'fillColor'], '#e5e7eb'],
+        'fill-opacity': ['coalesce', ['get', 'fillOpacity'], 0.15],
       },
     });
 
@@ -120,9 +120,9 @@ window['AuditMap'] = (() => {
       type: 'line',
       source: SOURCE,
       paint: {
-        'line-color': ['coalesce', ['get', 'strokeColor'], '#b5a882'],
-        'line-width': ['coalesce', ['get', 'strokeWidth'], 0.8],
-        'line-opacity': ['coalesce', ['get', 'strokeOpacity'], 0.17],
+        'line-color': ['coalesce', ['get', 'strokeColor'], '#94a3b8'],
+        'line-width': ['coalesce', ['get', 'strokeWidth'], 0.6],
+        'line-opacity': ['coalesce', ['get', 'strokeOpacity'], 0.5],
       },
     });
 
@@ -132,11 +132,11 @@ window['AuditMap'] = (() => {
       type: 'fill',
       source: SOURCE,
       paint: {
-        'fill-color': ['coalesce', ['get', 'fillColor'], '#243155'],
+        'fill-color': ['coalesce', ['get', 'fillColor'], '#e5e7eb'],
         'fill-opacity': [
           'case',
           ['boolean', ['feature-state', 'hover'], false],
-          ['min', ['+', ['coalesce', ['get', 'fillOpacity'], 0.08], 0.16], 0.85],
+          ['min', ['+', ['coalesce', ['get', 'fillOpacity'], 0.15], 0.18], 0.92],
           0,
         ],
       },
@@ -147,8 +147,8 @@ window['AuditMap'] = (() => {
       type: 'line',
       source: SOURCE,
       paint: {
-        'line-color': '#f0d8a8',
-        'line-width': 1.8,
+        'line-color': '#a16207',
+        'line-width': 2.2,
         'line-opacity': ['case', ['boolean', ['feature-state', 'hover'], false], 1, 0],
       },
     });

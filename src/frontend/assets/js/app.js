@@ -11,7 +11,7 @@
   }
 
   const state = {
-    mapFilter: 'central',
+    mapFilter: 'kabkota',
     tab: 'all',
     selectedAreaKey: null,
     selectedOwnerKey: null,
@@ -56,10 +56,9 @@
   }
 
   const FILTERS = [
-    { key: 'central', label: 'Kementerian/Lembaga' },
-    { key: 'provinsi', label: 'Pemprov' },
-    { key: 'kabkota', label: 'Pemkot' },
-    { key: 'other', label: 'Others' },
+    { key: 'kabkota',  label: 'Pemerintah Kab/Kota' },
+    { key: 'provinsi', label: 'Pemerintah Provinsi' },
+    { key: 'central',  label: 'Kementerian / Lembaga' },
   ];
 
   const TABS = [
@@ -581,12 +580,12 @@
         unmappedPackages: 0,
         multiLocationPackages: 0,
       },
-      legend: payload.legend || { zeroColor: '#243155', ranges: [] },
+      legend: payload.legend || { zeroColor: '#e5e7eb', ranges: [] },
       geo: payload.geo || { type: 'FeatureCollection', features: [] },
       regions: Array.isArray(payload.regions) ? payload.regions : [],
       provinceView: {
         legend: (payload.provinceView && payload.provinceView.legend) || {
-          zeroColor: '#243155',
+          zeroColor: '#e5e7eb',
           ranges: [],
         },
         geo: (payload.provinceView && payload.provinceView.geo) || {
@@ -615,7 +614,7 @@
     }
 
     if (!value || value <= 0) {
-      return legend.zeroColor || '#243155';
+      return legend.zeroColor || '#e5e7eb';
     }
 
     const range = (legend.ranges || []).find((item) => value >= item.min && value <= item.max);
@@ -1030,13 +1029,13 @@
     const area = getActiveAreaByKey(areaKey);
     const visible = areaMatchesCurrentView(area);
     const selected = state.selectedAreaKey === areaKey;
-    const strokeOpacity = (selected ? 1 : 0.2) * (visible ? 0.85 : 0.2);
+    const strokeOpacity = selected ? 1 : visible ? 0.6 : 0.2;
 
     return {
-      fillColor: area ? getLegendColor(area.totalPotentialWaste) : '#243155',
-      fillOpacity: selected ? 0.72 : visible ? 0.52 : 0.08,
-      strokeColor: selected ? '#f0d8a8' : '#b5a882',
-      strokeWidth: selected ? 2.1 : 0.8,
+      fillColor: area ? getLegendColor(area.totalPotentialWaste) : '#e5e7eb',
+      fillOpacity: selected ? 0.85 : visible ? 0.68 : 0.12,
+      strokeColor: selected ? '#a16207' : '#94a3b8',
+      strokeWidth: selected ? 2.5 : 0.6,
       strokeOpacity,
     };
   }
@@ -1588,11 +1587,19 @@
   }
 
   function setMapFilter(value) {
-    const wasProvinceView = isProvinceView();
+    const wasProvinceView     = isProvinceView();
     const wasCentralOwnerMode = isCentralOwnerMode();
     state.mapFilter = value;
-    const viewChanged = wasProvinceView !== isProvinceView();
-    const centralOwnerModeChanged = wasCentralOwnerMode !== isCentralOwnerMode();
+    const nowCentralOwnerMode  = isCentralOwnerMode();
+    const viewChanged          = wasProvinceView !== isProvinceView();
+    const centralOwnerModeChanged = wasCentralOwnerMode !== nowCentralOwnerMode;
+
+    // Auto-hide peta di mode K/L (tidak ada korelasi geografis yang bermakna)
+    if (nowCentralOwnerMode && mapVisible) {
+      applyMapVisibility(false);
+    } else if (!nowCentralOwnerMode && !mapVisible) {
+      applyMapVisibility(true);
+    }
 
     if (viewChanged) {
       state.tab = 'all';
@@ -1735,15 +1742,17 @@
     renderBootstrapLoading();
     renderSidebarAccessHint();
 
+    // ── Phase 1: data ringan (stats + sidebar) ──────────────────────────────
+    // Bootstrap tidak lagi menyertakan GeoJSON agar UI muncul dalam < 1 detik.
     try {
       dashboardData = normalizeDashboardData(await fetchJson('/bootstrap'));
-      regionsByKey = new Map(dashboardData.regions.map((region) => [region.regionKey, region]));
+      regionsByKey = new Map(dashboardData.regions.map((r) => [r.regionKey, r]));
       provincesByKey = new Map(
-        dashboardData.provinceView.provinces.map((province) => [province.provinceKey, province])
+        dashboardData.provinceView.provinces.map((p) => [p.provinceKey, p])
       );
+
       renderKpis();
       renderLegend();
-      initMap();
       renderFilterChips();
       renderTabs();
       renderSidebarContent();
@@ -1754,12 +1763,29 @@
         !dashboardData.regions.length
       ) {
         setMapStatus(
-          'Database lokal belum berisi data paket atau wilayah. Jalankan `npm run db:reset` atau impor backup database.',
+          'Database lokal belum berisi data paket atau wilayah. Jalankan `npm run db:reset`.',
           true
         );
+        return;
       }
+
+      // Tampilkan peta kosong dulu + info loading
+      setMapStatus('Memuat geometri peta...', false);
+
     } catch (error) {
       renderBootstrapError(formatFetchError(error));
+      return;
+    }
+
+    // ── Phase 2: GeoJSON peta (async, tidak blokir UI) ──────────────────────
+    try {
+      const geoPayload = await fetchJson('/geo');
+      dashboardData.geo              = geoPayload.geo              || { type: 'FeatureCollection', features: [] };
+      dashboardData.provinceView.geo = geoPayload.provinceGeo      || { type: 'FeatureCollection', features: [] };
+      renderLegend(); // update legend setelah geo siap
+      initMap();      // render peta
+    } catch (error) {
+      setMapStatus(`Gagal memuat peta: ${formatFetchError(error)}`, true);
     }
   }
 
@@ -1770,23 +1796,37 @@
 
   let mapVisible = true;
 
-  function toggleMap() {
-    mapVisible = !mapVisible;
+  function applyMapVisibility(visible) {
+    mapVisible = visible;
     const btn = document.getElementById('toggleMapBtn');
-    /** @type {HTMLElement | null} */
-    const mc = document.querySelector('.mc');
-    if (mc && btn) {
-      if (!mapVisible) {
-        mc.style.display = 'none';
-        btn.innerHTML = '&#128506; Tampilkan Peta';
+    const mc  = document.querySelector('.mc');
+    // Cari .ml lebih luas — bisa ada di berbagai wrapper
+    const ml  = document.querySelector('.dashboard-shell .ml') || document.querySelector('.ml');
+
+    if (!btn) { console.warn('[Nemesis] toggleMapBtn not found'); }
+    if (!mc)  { console.warn('[Nemesis] .mc not found'); }
+    if (!ml)  { console.warn('[Nemesis] .ml not found'); }
+
+    if (!visible) {
+      if (mc) mc.style.display = 'none';
+      if (ml) ml.classList.add('sidebar-only');
+      if (btn) {
+        btn.innerHTML = '<span class="map-toggle-icon">⊞</span> Tampilkan Peta';
         btn.classList.add('a');
-      } else {
-        mc.style.display = '';
-        btn.innerHTML = '&#128506; Sembunyikan Peta';
-        btn.classList.remove('a');
-        setTimeout(() => window.dispatchEvent(new Event('resize')), 50);
       }
+    } else {
+      if (mc) mc.style.display = '';
+      if (ml) ml.classList.remove('sidebar-only');
+      if (btn) {
+        btn.innerHTML = '<span class="map-toggle-icon">⊞</span> Sembunyikan Peta';
+        btn.classList.remove('a');
+      }
+      setTimeout(() => window.dispatchEvent(new Event('resize')), 50);
     }
+  }
+
+  function toggleMap() {
+    applyMapVisibility(!mapVisible);
   }
 
   window['dashboardActions'] = {

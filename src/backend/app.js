@@ -1,11 +1,13 @@
 import express from 'express';
+import compression from 'compression';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import hpp from 'hpp';
 import { CORS_ORIGIN } from './config.js';
 import {
-  getBootstrapPayload,
+  getBootstrapJson,
+  getGeoJson,
   getOwnerPackages,
   getRegionPackages,
   getProvincePackages,
@@ -25,6 +27,9 @@ export async function createApp() {
   const { openDatabase } = await import('./db.js');
   const db = openDatabase();
   const app = express();
+
+  // Gzip compression — kritis untuk bootstrap 25MB
+  app.use(compression());
 
   // Security Middlewares
   app.use(helmet({
@@ -66,7 +71,14 @@ export async function createApp() {
   });
 
   app.get('/api/bootstrap', (_req, res) => {
-    res.json(getBootstrapPayload(db));
+    res.setHeader('Content-Type', 'application/json');
+    res.send(getBootstrapJson(db));
+  });
+
+  // GeoJSON peta dipisah dari bootstrap agar dashboard bisa render cepat
+  app.get('/api/geo', (_req, res) => {
+    res.setHeader('Content-Type', 'application/json');
+    res.send(getGeoJson(db));
   });
 
   app.get('/api/regions/:regionKey/packages', (req, res) => {

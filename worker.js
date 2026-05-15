@@ -7,6 +7,7 @@ import morgan from 'morgan';
 import { createStream } from 'rotating-file-stream';
 import { createApp } from './src/backend/app.js';
 import { resolveRuntimeDbPath } from './src/backend/db.js';
+import { getBootstrapJson } from './src/backend/services/dashboard.service.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.join(__dirname, '.env') });
@@ -112,6 +113,17 @@ async function startServer() {
     console.log(`[Worker] Orchestrator listening on http://127.0.0.1:${PORT}`);
     console.log(`[Worker] Environment: ${isProduction ? 'Production' : 'Development'}`);
     console.log(`[Worker] SQLite Runtime Path: ${resolveRuntimeDbPath()}`);
+
+    // Pre-warm bootstrap cache di background agar request pertama dari browser langsung cepat
+    console.log('[Worker] Pre-warming bootstrap cache...');
+    setImmediate(() => {
+      try {
+        getBootstrapJson(db);
+        console.log('[Worker] Bootstrap cache ready.');
+      } catch (err) {
+        console.warn('[Worker] Bootstrap pre-warm failed:', err.message);
+      }
+    });
   });
 
   function shutdown(signal) {

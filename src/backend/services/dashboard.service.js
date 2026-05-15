@@ -11,7 +11,9 @@ import {
 } from '../repositories/dashboard.repository.js';
 import { DEFAULT_REGION_PAGE_SIZE, MAX_REGION_PAGE_SIZE } from '../config.js';
 
-const LEGEND_COLORS = ['#7b86a3', '#b5a882', '#d4a999', '#8b7332', '#a83c2e'];
+// Warm sequential scale: light amber → amber → orange → red → deep red
+// Optimised for Positron light map tiles
+const LEGEND_COLORS = ['#fde68a', '#fbbf24', '#f59e0b', '#dc2626', '#7f1d1d'];
 const OWNER_METRIC_DEFINITIONS = [
   {
     key: 'central',
@@ -204,7 +206,7 @@ function buildLegend(values) {
 
   if (!positiveValues.length) {
     return {
-      zeroColor: '#243155',
+      zeroColor: '#e5e7eb',
       ranges,
     };
   }
@@ -241,7 +243,7 @@ function buildLegend(values) {
   }
 
   return {
-    zeroColor: '#243155',
+    zeroColor: '#e5e7eb',
     ranges,
   };
 }
@@ -310,33 +312,65 @@ function queryOwnerPackagesPage(db, ownerType, ownerName, normalizedQuery) {
   return result;
 }
 
-function getBootstrapPayload(db) {
-  const summaryRow = getNationalSummary(db);
-  const regions = getRegionRows(db).map(mapRegionRow);
-  const provinces = getProvinceRows(db).map(mapProvinceRow);
-  const centralOwners = getOwnerRows(db, 'central').map(mapOwnerRow);
+// ── Cache in-memory (JSON string) untuk bootstrap ringan dan geo terpisah ───
+let _bootstrapJson = null;  // ~1MB stats tanpa GeoJSON
+let _geoJson       = null;  // ~24MB GeoJSON peta (di-fetch terpisah oleh frontend)
 
-  return {
+function buildAndCacheBootstrap(db) {
+  const t0 = Date.now();
+  const summaryRow    = getNationalSummary(db);
+  const regions       = getRegionRows(db).map(mapRegionRow);
+  const provinces     = getProvinceRows(db).map(mapProvinceRow);
+  const centralOwners = getOwnerRows(db, 'central').map(mapOwnerRow);
+  console.log(`[Bootstrap] DB queries done in ${Date.now() - t0}ms`);
+
+  // Bootstrap RINGAN — tanpa GeoJSON, frontend render sidebar & KPI langsung
+  const light = {
     summary: {
-      totalPackages: summaryRow.total_packages || 0,
+      totalPackages:         summaryRow.total_packages || 0,
       totalPriorityPackages: summaryRow.total_priority_packages || 0,
-      totalPotentialWaste: summaryRow.total_potential_waste || 0,
-      totalBudget: summaryRow.total_budget || 0,
-      unmappedPackages: summaryRow.unmapped_packages || 0,
+      totalPotentialWaste:   summaryRow.total_potential_waste || 0,
+      totalBudget:           summaryRow.total_budget || 0,
+      unmappedPackages:      summaryRow.unmapped_packages || 0,
       multiLocationPackages: summaryRow.multi_location_packages || 0,
     },
-    legend: buildLegend(regions.map((region) => region.totalPotentialWaste)),
-    geo: getJsonAsset(db, 'audit_geojson', { type: 'FeatureCollection', features: [] }),
+    legend:      buildLegend(regions.map((r) => r.totalPotentialWaste)),
+    geo:         { type: 'FeatureCollection', features: [] }, // placeholder kosong
     regions,
     provinceView: {
-      legend: buildLegend(provinces.map((province) => province.totalPotentialWaste)),
-      geo: getJsonAsset(db, 'audit_province_geojson', { type: 'FeatureCollection', features: [] }),
+      legend:    buildLegend(provinces.map((p) => p.totalPotentialWaste)),
+      geo:       { type: 'FeatureCollection', features: [] }, // placeholder kosong
       provinces,
     },
-    ownerLists: {
-      central: centralOwners,
-    },
+    ownerLists: { central: centralOwners },
   };
+  _bootstrapJson = JSON.stringify(light);
+
+  // GeoJSON BESAR — di-serialise terpisah, di-fetch browser setelah UI ready
+  const geo = {
+    geo:         getJsonAsset(db, 'audit_geojson',         { type: 'FeatureCollection', features: [] }),
+    provinceGeo: getJsonAsset(db, 'audit_province_geojson',{ type: 'FeatureCollection', features: [] }),
+  };
+  _geoJson = JSON.stringify(geo);
+
+  const totalKB = Math.round((_bootstrapJson.length + _geoJson.length) / 1024);
+  console.log(`[Bootstrap] Ready — light ${Math.round(_bootstrapJson.length/1024)}KB | geo ${Math.round(_geoJson.length/1024)}KB | total ${totalKB}KB | ${Date.now() - t0}ms`);
+}
+
+function getBootstrapJson(db) {
+  if (!_bootstrapJson) buildAndCacheBootstrap(db);
+  return _bootstrapJson;
+}
+
+function getGeoJson(db) {
+  if (!_geoJson) buildAndCacheBootstrap(db);
+  return _geoJson;
+}
+
+// Tetap ada untuk backward-compat (worker pre-warm)
+function getBootstrapPayload(db) {
+  if (!_bootstrapJson) buildAndCacheBootstrap(db);
+  return null; // caller hanya butuh side-effect (cache warm)
 }
 
 function getRegionPackages(db, regionKey, requestQuery) {
@@ -542,4 +576,4 @@ function getOwnerPackages(db, requestQuery) {
   };
 }
 
-export { getBootstrapPayload, getOwnerPackages, getRegionPackages, getProvincePackages };
+export { getBootstrapPayload, getBootstrapJson, getGeoJson, getOwnerPackages, getRegionPackages, getProvincePackages };
